@@ -1,0 +1,1711 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="TaxiGo · Conductor"/>
+  <meta name="theme-color" content="#f4c430"/>
+  <link rel="manifest" href="manifest-conductor.json"/>
+  <link rel="apple-touch-icon" href="icons/icon-192.png"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <title>TaxiGo Ibiza — Conductor</title>
+  <style>
+    :root {
+      --primary: #f4c430;
+      --dark: #0d1117;
+      --card: #161b22;
+      --card2: #1c2128;
+      --text: #e6edf3;
+      --muted: #7d8590;
+      --success: #3fb950;
+      --danger: #f85149;
+      --info: #58a6ff;
+      --border: #30363d;
+      --radius: 14px;
+      --tap: 54px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; height: 100dvh; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--dark); color: var(--text); overflow: hidden;
+    }
+
+    /* ── Login / Registro ── */
+    #login-screen {
+      position: fixed; inset: 0; background: var(--dark);
+      display: flex; align-items: flex-start; justify-content: center;
+      z-index: 1000; padding: 24px 16px 40px;
+      overflow-y: auto; overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+    }
+    .login-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 28px 24px; width: 100%; max-width: 380px; text-align: center;
+    }
+    .logo-big { font-size: 2.4rem; font-weight: 900; color: var(--primary); margin-bottom: 4px; }
+    .logo-sub  { font-size: 0.85rem; color: var(--muted); margin-bottom: 20px; }
+    .form-group { margin-bottom: 14px; text-align: left; }
+    .form-group label { font-size: 0.72rem; color: var(--muted); display: block; margin-bottom: 5px; }
+    .form-group input, .form-group select {
+      width: 100%; background: var(--dark); border: 1.5px solid var(--border);
+      border-radius: 10px; padding: 14px; color: var(--text); font-size: 1rem; outline: none;
+      min-height: var(--tap); -webkit-appearance: none; appearance: none;
+    }
+    .form-group input:focus, .form-group select:focus { border-color: var(--primary); }
+    .tabs { display:flex; border:1.5px solid var(--border); border-radius:10px; overflow:hidden; margin-bottom:20px; }
+    .tab-btn { flex:1; padding:11px; border:none; cursor:pointer; font-weight:700; font-size:0.82rem; transition:background .2s; }
+    .tab-btn.active { background:var(--primary); color:var(--dark); }
+    .tab-btn:not(.active) { background:transparent; color:var(--muted); }
+    .saved-profile {
+      display:flex; align-items:center; justify-content:space-between;
+      background:var(--dark); border:1.5px solid var(--border); border-radius:10px;
+      padding:14px; margin-bottom:10px; cursor:pointer; transition:border-color .2s;
+    }
+    .saved-profile:hover { border-color:var(--primary); }
+    .sp-info { text-align:left; }
+    .sp-nick { font-weight:700; color:var(--text); }
+    .sp-pay  { font-size:0.72rem; color:var(--muted); margin-top:2px; }
+    .pay-hint { font-size:0.72rem; color:var(--muted); margin-top:6px; padding:8px; background:var(--dark); border-radius:8px; line-height:1.5; }
+
+    /* ── App shell: vertical flex ── */
+    #app-shell { height: 100dvh; display: flex; flex-direction: column; }
+
+    /* ── Header ── */
+    header {
+      background: var(--card); border-bottom: 1px solid var(--border);
+      padding: 12px 16px; display: flex; align-items: center; justify-content: space-between;
+      flex-shrink: 0; z-index: 100;
+    }
+    .logo { font-size: 1.2rem; font-weight: 800; color: var(--primary); }
+    .badge { background: #1a3a1a; color: var(--success); font-size: 0.65rem; padding: 3px 8px; border-radius: 10px; font-weight: 700; border: 1px solid var(--success); }
+    .toggle-row { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+    .toggle-lbl { font-size: 0.8rem; color: var(--muted); }
+    .toggle-sw { width: 44px; height: 26px; background: var(--border); border-radius: 13px; position: relative; transition: background .2s; }
+    .toggle-sw.on { background: var(--success); }
+    .toggle-sw::after { content:''; position:absolute; width:20px;height:20px;border-radius:50%;background:white;top:3px;left:3px;transition:left .2s; }
+    .toggle-sw.on::after { left:21px; }
+
+    /* ── Stats strip ── */
+    #stats-bar {
+      background: var(--card2); border-bottom: 1px solid var(--border);
+      padding: 8px 16px; display: flex; gap: 20px; flex-shrink: 0; overflow-x: auto;
+    }
+    .stat { font-size: 0.72rem; color: var(--muted); white-space: nowrap; }
+    .stat span { font-weight: 700; color: var(--text); font-size: 0.85rem; }
+
+    /* ── Content split: list + map ── */
+    #content { display: flex; flex: 1; overflow: hidden; }
+
+    /* List panel */
+    #panel-list { width: 100%; max-width: 420px; display: flex; flex-direction: column; overflow: hidden; border-right: 1px solid var(--border); }
+    #trips-scroll { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
+    /* Map panel (hidden on small screens) */
+    #panel-map { flex: 1; display: none; }
+    @media (min-width: 780px) {
+      #panel-map { display: block; }
+    }
+    #driver-map { width: 100%; height: 100%; }
+
+    /* ── Section headers ── */
+    .sec-hdr {
+      padding: 10px 16px; background: var(--card2); border-bottom: 1px solid var(--border);
+      font-size: 0.7rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 1px;
+      display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
+    }
+    .count { background: var(--primary); color: var(--dark); font-size: 0.65rem; padding: 2px 7px; border-radius: 10px; font-weight: 900; }
+
+    /* ── Active trip banner ── */
+    #active-banner {
+      background: #0d2010; border-bottom: 2px solid var(--success);
+      padding: 12px 16px; display: none; flex-shrink: 0;
+    }
+    .active-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .active-label { font-size: 0.72rem; color: var(--success); font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+    .active-price { font-size: 1.3rem; font-weight: 900; color: var(--primary); }
+
+    .route-mini { font-size: 0.82rem; color: var(--muted); margin-bottom: 12px; }
+    .route-mini strong { color: var(--text); }
+
+    .stage-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+    .stage-chip {
+      padding: 6px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 700;
+      background: var(--card2); color: var(--muted); border: 1px solid var(--border);
+    }
+    .stage-chip.done { background: #082a12; color: var(--success); border-color: var(--success); }
+    .stage-chip.active { background: #2a1f00; color: var(--primary); border-color: var(--primary); }
+
+    .action-row { display: flex; gap: 8px; }
+
+    /* ── Buttons ── */
+    .btn {
+      display: block; width: 100%; padding: 16px; border: none; border-radius: 12px;
+      font-size: 0.95rem; font-weight: 700; cursor: pointer; min-height: var(--tap);
+      transition: transform .1s, opacity .2s; -webkit-appearance: none;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn-primary { background: var(--primary); color: var(--dark); }
+    .btn-success { background: var(--success); color: #fff; }
+    .btn-danger  { background: var(--danger); color: #fff; }
+    .btn-outline { background: transparent; color: var(--primary); border: 2px solid var(--primary); }
+    .btn-sm { padding: 12px 16px; font-size: 0.82rem; display: inline-block; width: auto; min-height: 44px; }
+    .btn:disabled { opacity: .4; cursor: not-allowed; }
+
+    /* ── Trip cards ── */
+    .trip-card {
+      padding: 16px; border-bottom: 1px solid var(--border);
+      transition: background .15s; position: relative;
+    }
+    .trip-card.new-trip { animation: flashIn .4s ease; }
+    @keyframes flashIn { from { background:#1a2a10; } to { background: transparent; } }
+
+    .tc-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+    .tc-id { font-family: monospace; font-size: 0.68rem; color: var(--muted); }
+    .tc-price { font-size: 1.3rem; font-weight: 900; color: var(--primary); }
+    .tc-dist  { font-size: 0.72rem; color: var(--muted); text-align: right; }
+
+    .route-stops { display: flex; flex-direction: column; gap: 4px; font-size: 0.82rem; margin-bottom: 12px; }
+    .route-stop { display: flex; align-items: flex-start; gap: 8px; }
+    .r-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
+    .r-dot.orig { background: var(--success); }
+    .r-dot.dest { background: var(--danger); }
+
+    .badge-new { display:inline-block;padding:3px 10px;border-radius:20px;font-size:.68rem;font-weight:700;background:#1a2a3c;color:var(--info);border:1px solid var(--info); }
+    .badge-done { display:inline-block;padding:3px 10px;border-radius:20px;font-size:.68rem;font-weight:700;background:#1a1a1a;color:var(--muted);border:1px solid var(--border); }
+
+    /* ── Empty state ── */
+    .empty { text-align:center;padding:40px 20px;color:var(--muted); }
+    .empty .e-icon { font-size:2.8rem;margin-bottom:12px; }
+    .empty .e-txt  { font-size:.85rem; }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      background: var(--primary); color: var(--dark); padding: 13px 24px;
+      border-radius: 30px; font-weight: 700; font-size: .875rem;
+      display: none; z-index: 9999; white-space: nowrap;
+      box-shadow: 0 4px 20px rgba(0,0,0,.4);
+    }
+
+    /* ── Incoming trip popup ── */
+    #incoming-popup {
+      position: fixed; inset: 0; background: rgba(0,0,0,.7);
+      display: none; align-items: center; justify-content: center;
+      z-index: 500; padding: 20px;
+    }
+    .popup-card {
+      background: var(--card); border: 2px solid var(--success); border-radius: var(--radius);
+      padding: 24px; width: 100%; max-width: 360px; text-align: center;
+      animation: popIn .3s cubic-bezier(.175,.885,.32,1.275);
+    }
+    @keyframes popIn { from{transform:scale(.8);opacity:0} to{transform:scale(1);opacity:1} }
+    .popup-icon { font-size: 3rem; margin-bottom: 10px; animation: ring .5s infinite alternate; }
+    @keyframes ring { from{transform:rotate(-15deg)} to{transform:rotate(15deg)} }
+    .popup-title { font-size: 1.2rem; font-weight: 800; color: var(--primary); margin-bottom: 6px; }
+    .popup-price { font-size: 2rem; font-weight: 900; color: var(--primary); margin: 10px 0; }
+    .popup-route { font-size: .82rem; color: var(--muted); margin-bottom: 16px; line-height: 1.6; }
+    .popup-btns { display: flex; gap: 10px; }
+    .popup-btns .btn { flex: 1; }
+    .popup-timer { font-size: .75rem; color: var(--muted); margin-top: 10px; }
+    .popup-bar { height: 4px; background: var(--border); border-radius: 2px; margin-top: 8px; }
+    .popup-bar-fill { height: 100%; background: var(--success); border-radius: 2px; transition: width .9s linear; }
+  </style>
+</head>
+<body>
+
+<!-- ── Registro / Login ── -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="logo-big">🚖</div>
+    <div class="logo-sub">TaxiGo Ibiza · Panel Conductor</div>
+
+    <div class="tabs">
+      <button class="tab-btn active" id="tab-reg" onclick="showTab('reg')">Registrarse</button>
+      <button class="tab-btn" id="tab-login" onclick="showTab('login')">Entrar</button>
+    </div>
+
+    <!-- ── Formulario de registro ── -->
+    <div id="form-reg">
+      <div class="form-group">
+        <label>Apodo (lo verán los clientes)</label>
+        <input type="text" id="reg-nick" placeholder="p.ej. Carlos_Taxi, Paco_Ibiza..." autocomplete="off" maxlength="30"/>
+      </div>
+      <div class="form-group">
+        <label>🚗 Tipo de tu vehículo <span style="color:var(--danger)">*</span></label>
+        <select id="reg-vehicle">
+          <option value="comfort">🚗 Comfort · turismo · 4 plazas</option>
+          <option value="van">🚐 Coach Van · furgoneta · 6 plazas</option>
+          <option value="vanxl">🚌 Van XL · van grande · 8 plazas</option>
+        </select>
+        <div class="pay-hint" style="margin-top:6px">Solo recibirás viajes que coincidan con tu capacidad. Un Van XL también puede aceptar viajes Comfort.</div>
+      </div>
+
+      <div class="form-group" style="background:var(--card2);border-radius:8px;padding:12px;margin-bottom:8px">
+        <div style="font-size:0.8rem;font-weight:700;color:var(--primary);margin-bottom:8px">💰 Métodos de cobro</div>
+        <div class="pay-hint" style="margin-top:0;margin-bottom:10px">Rellena al menos uno. Recibirás el 85% de cada viaje en el método que elija el admin.</div>
+
+        <label style="margin-top:6px">🔵 USDC en Base <span style="color:var(--success);font-weight:700;font-size:.68rem">· 🕶️ discreto / anónimo</span> <span style="color:var(--muted);font-weight:400">(opcional)</span></label>
+        <input type="text" id="reg-base" placeholder="0x..." autocomplete="off" autocorrect="off" spellcheck="false"/>
+
+        <label style="margin-top:14px">◎ USDC en Solana <span style="color:var(--success);font-weight:700;font-size:.68rem">· 🕶️ discreto / anónimo</span> <span style="color:var(--muted);font-weight:400">(opcional)</span></label>
+        <input type="text" id="reg-solana" placeholder="Dirección Solana..." autocomplete="off" autocorrect="off" spellcheck="false"/>
+
+        <label style="margin-top:14px">💳 Stripe (email) <span style="color:var(--muted);font-weight:400">(opcional)</span></label>
+        <input type="email" id="reg-stripe" placeholder="tu@email.com" autocomplete="off"/>
+
+        <label style="margin-top:14px">📱 Bizum (teléfono) <span style="color:var(--muted);font-weight:400">(opcional)</span></label>
+        <input type="tel" id="reg-bizum" placeholder="+34 600 000 000" autocomplete="off"/>
+
+        <label style="margin-top:14px">💸 Revolut (@usuario) <span style="color:var(--muted);font-weight:400">(opcional)</span></label>
+        <input type="text" id="reg-revolut" placeholder="@usuario" autocomplete="off" autocorrect="off" spellcheck="false"/>
+      </div>
+      <div class="form-group">
+        <label>PIN de acceso · 4 a 6 dígitos</label>
+        <input type="password" id="reg-pin" placeholder="••••" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="new-password"/>
+        <div class="pay-hint">Te lo pedirá cada vez que entres. Mínimo 4 dígitos, máximo 6.</div>
+      </div>
+      <div class="form-group">
+        <label>Confirma el PIN</label>
+        <input type="password" id="reg-pin2" placeholder="••••" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="new-password"/>
+      </div>
+      <button class="btn btn-primary" onclick="doRegister()">Registrarme →</button>
+      <p style="margin-top:10px;font-size:.72rem;color:var(--muted)">No almacenamos datos personales. Solo tu apodo y dirección de cobro.</p>
+    </div>
+
+    <!-- ── Entrar con apodo + PIN ── -->
+    <div id="form-login" style="display:none">
+      <div class="form-group">
+        <label>Tu apodo</label>
+        <input type="text" id="login-nick" placeholder="El apodo con el que te registraste" autocomplete="username" maxlength="30"/>
+      </div>
+      <div class="form-group">
+        <label>PIN</label>
+        <input type="password" id="login-pin" placeholder="••••" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="current-password"/>
+      </div>
+      <button class="btn btn-primary" onclick="doLogin()">Entrar →</button>
+      <div id="login-error" style="display:none;margin-top:10px;padding:10px;border-radius:8px;background:#2a0a0a;color:var(--danger);font-size:.82rem;border:1px solid var(--danger);text-align:center"></div>
+      <p style="font-size:.72rem;color:var(--muted);margin-top:16px">¿Es tu primera vez? <span style="color:var(--primary);cursor:pointer;text-decoration:underline" onclick="showTab('reg')">Regístrate aquí</span></p>
+    </div>
+
+    <!-- Soporte / contacto -->
+    <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border);text-align:center;font-size:.72rem;color:var(--muted);line-height:1.6">
+      📧 ¿Quejas o sugerencias? Escríbenos a:<br/>
+      <a href="mailto:taxigoibz@gmail.com?subject=TaxiGo%20Conductor%20-%20Sugerencia%2FQueja"
+         style="color:var(--primary);text-decoration:none;font-weight:700">taxigoibz@gmail.com</a>
+    </div>
+  </div>
+</div>
+
+<!-- ── App ── -->
+<div id="app-shell" style="display:none">
+  <header>
+    <div style="display:flex;align-items:center;gap:10px">
+      <span class="logo">🚖 TaxiGo</span>
+      <span class="badge">CONDUCTOR</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <div class="toggle-row" onclick="toggleAvailability()">
+        <span class="toggle-lbl" id="avail-lbl">Inactivo</span>
+        <div class="toggle-sw" id="avail-sw"></div>
+      </div>
+      <button onclick="openPayoutsInfo(false)" title="Cómo y cuándo cobro"
+        style="padding:6px 10px;border-radius:20px;border:2px solid var(--border);background:transparent;color:var(--muted);font-size:0.95rem;cursor:pointer">ℹ️</button>
+      <button onclick="openEditProfile()" title="Editar mi perfil"
+        style="padding:6px 10px;border-radius:20px;border:2px solid var(--border);background:transparent;color:var(--muted);font-size:0.95rem;cursor:pointer">✏️</button>
+      <button onclick="toggleLangDrv()" id="lang-btn-drv"
+        style="padding:6px 12px;border-radius:20px;border:2px solid var(--primary);background:transparent;color:var(--primary);font-size:0.78rem;font-weight:700;cursor:pointer;white-space:nowrap">🇬🇧 EN</button>
+    </div>
+  </header>
+
+  <div id="stats-bar">
+    <div class="stat">Conductor: <span id="sn">—</span></div>
+    <div class="stat">Coche: <span id="s-car" style="color:var(--primary)">—</span></div>
+    <div class="stat">Viajes hoy: <span id="st">0</span></div>
+    <div class="stat">Ganado: <span id="se">0,00 €</span></div>
+    <div class="stat">Cobro: <span id="spay" style="color:var(--primary)">—</span></div>
+    <div class="stat" title="Conductores conectados ahora mismo">
+      🚖 Activos: <span id="active-drivers" style="color:var(--success);font-weight:700">—</span>
+    </div>
+  </div>
+
+  <div id="content">
+    <div id="panel-list">
+
+      <!-- Active trip banner -->
+      <div id="active-banner">
+        <div class="active-top">
+          <span class="active-label">🟢 Viaje en curso</span>
+          <div style="text-align:right">
+            <div class="active-price" id="ab-price">—</div>
+            <div style="font-size:0.72rem; color:var(--muted)">Tu cobro: <strong id="ab-payout" style="color:var(--success)">—</strong></div>
+          </div>
+        </div>
+        <div class="route-mini" id="ab-route">—</div>
+        <div class="stage-chips">
+          <div class="stage-chip active" id="sc1">📍 En camino</div>
+          <div class="stage-chip" id="sc2">🧍 Recogida</div>
+          <div class="stage-chip" id="sc3">🚗 En ruta</div>
+          <div class="stage-chip" id="sc4">🏁 Llegada</div>
+        </div>
+        <div class="action-row">
+          <button class="btn btn-success btn-sm" onclick="advanceStage()" id="btn-advance">✅ Siguiente etapa</button>
+          <button class="btn btn-primary btn-sm" id="btn-complete" onclick="completeTrip()" style="display:none">🏁 Completar viaje</button>
+        </div>
+        <button class="btn btn-sm" onclick="cancelActiveTrip()"
+          style="background:transparent;border:1px solid var(--danger);color:var(--danger);margin-top:8px;font-size:.78rem">
+          ❌ Cancelar viaje (vuelve a la lista)
+        </button>
+      </div>
+
+      <!-- Available trips -->
+      <div class="sec-hdr">
+        Viajes disponibles
+        <span class="count" id="avail-count">0</span>
+      </div>
+      <div id="trips-scroll">
+        <div id="trips-list"></div>
+
+        <!-- Done today -->
+        <div class="sec-hdr" style="margin-top:4px">
+          Completados hoy
+          <span class="count" id="done-count" style="background:var(--muted);color:var(--dark)">0</span>
+        </div>
+        <div id="done-list"></div>
+
+        <!-- Soporte / contacto + legales (al final del scroll) -->
+        <div style="padding:18px 14px 24px;text-align:center;font-size:.7rem;color:var(--muted);line-height:1.7;border-top:1px solid var(--border);margin-top:10px">
+          📧 Quejas o sugerencias:<br/>
+          <a href="mailto:taxigoibz@gmail.com?subject=TaxiGo%20Conductor%20-%20Sugerencia%2FQueja"
+             style="color:var(--primary);text-decoration:none;font-weight:700">taxigoibz@gmail.com</a>
+          <div style="margin-top:10px;display:flex;justify-content:center;gap:14px;flex-wrap:wrap">
+            <a href="privacy.html" target="_blank" rel="noopener" style="color:var(--muted);font-size:0.68rem">Privacidad</a>
+            <span style="color:var(--border)">·</span>
+            <a href="terms.html" target="_blank" rel="noopener" style="color:var(--muted);font-size:0.68rem">Términos</a>
+            <span style="color:var(--border)">·</span>
+            <a href="#" onclick="event.preventDefault();openDrvAbout()" style="color:var(--muted);font-size:0.68rem">Acerca de</a>
+          </div>
+          <div style="margin-top:6px;color:var(--border);font-size:0.62rem">TaxiGo Conductor v1.0 · © 2026</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-map">
+      <div id="driver-map"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Incoming trip popup ── -->
+<div id="incoming-popup">
+  <div class="popup-card">
+    <div class="popup-icon">🔔</div>
+    <div class="popup-title">¡Nuevo viaje!</div>
+    <div class="popup-price" id="pop-price">—</div>
+    <div style="font-size:0.85rem; color:#3fb950; font-weight:700; margin-bottom:4px">Tu cobro: <span id="pop-payout">—</span> (85%)</div>
+    <div class="popup-route" id="pop-route">—</div>
+    <div class="popup-btns">
+      <button class="btn btn-danger btn-sm" onclick="rejectTrip()">✕ Rechazar</button>
+      <button class="btn btn-success" onclick="acceptCurrentTrip()">✅ Aceptar</button>
+    </div>
+    <div class="popup-timer" id="pop-timer">Se cierra en 30s</div>
+    <div class="popup-bar"><div class="popup-bar-fill" id="pop-bar" style="width:100%"></div></div>
+  </div>
+</div>
+
+<!-- ── Modal "Acerca de" conductor ── -->
+<div id="drv-about-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:1700;padding:20px;overflow-y:auto" onclick="if(event.target===this)closeDrvAbout()">
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;max-width:400px;margin:30px auto;padding:24px;text-align:center">
+    <div style="font-size:3.5rem;margin-bottom:6px">🚖</div>
+    <h2 style="color:var(--primary);font-size:1.3rem;margin-bottom:4px">TaxiGo Conductor</h2>
+    <div style="font-size:0.78rem;color:var(--muted);margin-bottom:18px">Versión 1.0 · 2026</div>
+    <p style="font-size:0.85rem;line-height:1.6;color:var(--text);margin-bottom:16px">
+      Plataforma para conductores de taxi en Ibiza. Acepta viajes, cobra al instante, mantén tus datos seguros.
+    </p>
+    <div style="background:var(--card2);border-radius:10px;padding:12px;font-size:0.78rem;line-height:1.7;margin-bottom:14px">
+      🚕 Tu coche, tus reglas<br>
+      💰 85% del precio para ti<br>
+      🔒 Pagos discretos en USDC o tradicionales<br>
+      ⚡ Stripe Connect = cobro instantáneo
+    </div>
+    <div style="display:flex;justify-content:center;gap:14px;margin-bottom:14px;flex-wrap:wrap">
+      <a href="privacy.html" target="_blank" rel="noopener" style="color:var(--primary);text-decoration:none;font-size:0.82rem">📋 Privacidad</a>
+      <a href="terms.html" target="_blank" rel="noopener" style="color:var(--primary);text-decoration:none;font-size:0.82rem">📜 Términos</a>
+    </div>
+    <div style="font-size:0.75rem;color:var(--muted);margin-bottom:14px">
+      📧 <a href="mailto:taxigoibz@gmail.com" style="color:var(--primary)">taxigoibz@gmail.com</a>
+    </div>
+    <button class="btn btn-primary btn-sm" style="width:100%" onclick="closeDrvAbout()">Cerrar</button>
+  </div>
+</div>
+
+<!-- ── Modal informativo de cobros (se muestra al entrar la 1ª vez, reabrible desde ℹ️) ── -->
+<div id="payouts-info-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:1600;padding:18px;overflow-y:auto" onclick="if(event.target===this&&!piRequiresAccept)closePayoutsInfo()">
+  <div style="background:var(--card);border:2px solid var(--primary);border-radius:var(--radius);max-width:480px;margin:20px auto;padding:0;overflow:hidden">
+    <div style="padding:16px 20px;border-bottom:1px solid var(--border);background:var(--card2)">
+      <h2 style="font-size:1.1rem;color:var(--primary)">💸 Cómo y cuándo cobras</h2>
+    </div>
+    <div style="padding:20px;font-size:0.88rem;line-height:1.55">
+
+      <div style="background:#1a1200;border-left:3px solid var(--primary);padding:10px 12px;border-radius:6px;margin-bottom:14px;font-size:0.82rem">
+        <strong style="color:var(--primary)">⚠️ El cliente debe confirmar el viaje primero</strong><br/>
+        Solo se libera tu cobro <strong>después de que el cliente confirme</strong> que el viaje fue correcto (al valorarte con estrellas).
+        Si no confirma en <strong>24 h</strong>, el pago se auto-libera automáticamente.
+      </div>
+
+      <h3 style="font-size:0.92rem;color:var(--primary);margin:10px 0 8px">⏱️ Plazos por método de cobro</h3>
+
+      <div style="background:#082a1c;border-left:3px solid var(--success);padding:10px 12px;border-radius:6px;margin-bottom:8px">
+        <strong style="color:var(--success)">⚡ Stripe (transferencia automática) — INSTANTÁNEO</strong><br/>
+        <span style="font-size:0.82rem;color:var(--muted)">Tras la confirmación del cliente, el dinero llega a tu cuenta Stripe en segundos.</span>
+      </div>
+
+      <div style="background:#0a1a2a;border-left:3px solid var(--info);padding:10px 12px;border-radius:6px;margin-bottom:8px">
+        <strong style="color:var(--info)">🔵 USDC en Base / ◎ USDC en Solana — 24-48 h</strong><br/>
+        <span style="font-size:0.82rem;color:var(--muted)">Transferencia on-chain a tu wallet. Cobro discreto y anónimo.</span>
+      </div>
+
+      <div style="background:#0a1a2a;border-left:3px solid var(--info);padding:10px 12px;border-radius:6px;margin-bottom:14px">
+        <strong style="color:var(--info)">💳 Stripe manual / 📱 Bizum / 💸 Revolut — 24-48 h</strong><br/>
+        <span style="font-size:0.82rem;color:var(--muted)">Cobro manual tras confirmación. Depende de la franja horaria.</span>
+      </div>
+
+      <div style="font-size:0.78rem;color:var(--muted);padding:8px;background:var(--card2);border-radius:6px;text-align:center">
+        💡 Quieres cobrar al instante? Activa <strong style="color:var(--success)">Stripe Connect</strong> desde tu perfil ✏️
+      </div>
+
+      <button class="btn btn-primary" style="margin-top:16px" onclick="acceptPayoutsInfo()">✅ Entendido, quiero recibir viajes</button>
+      <button class="btn" id="pi-close-btn" style="background:transparent;border:1px solid var(--border);color:var(--muted);margin-top:8px;display:none" onclick="closePayoutsInfo()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal Editar mi perfil ── -->
+<div id="edit-profile-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1500;padding:20px;overflow-y:auto;-webkit-overflow-scrolling:touch" onclick="if(event.target===this)closeEditProfile()">
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);max-width:420px;margin:20px auto;padding:0;overflow:hidden">
+    <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:var(--card2)">
+      <h2 style="font-size:1.05rem;color:var(--primary)">✏️ Editar mi perfil</h2>
+      <button onclick="closeEditProfile()" style="background:transparent;border:none;color:var(--muted);font-size:1.4rem;cursor:pointer;line-height:1">✕</button>
+    </div>
+    <div style="padding:20px">
+      <div class="form-group">
+        <label>🚗 Modelo del coche</label>
+        <input type="text" id="ep-car" placeholder="p.ej. Mercedes Vito, Toyota Prius..." maxlength="50"/>
+        <div class="pay-hint">Los clientes verán este modelo al aceptar su viaje.</div>
+      </div>
+      <div class="form-group">
+        <label>🚙 Tipo de vehículo (plazas)</label>
+        <select id="ep-vehicle">
+          <option value="comfort">🚗 Comfort · 4 plazas</option>
+          <option value="van">🚐 Coach Van · 6 plazas</option>
+          <option value="vanxl">🚌 Van XL · 8 plazas</option>
+        </select>
+        <div class="pay-hint">Determina qué viajes puedes aceptar.</div>
+      </div>
+      <div class="form-group" style="background:var(--card2);border-radius:8px;padding:12px">
+        <div style="font-size:0.8rem;font-weight:700;color:var(--primary);margin-bottom:8px">💰 Métodos de cobro</div>
+        <label style="margin-top:6px">🔵 USDC en Base <span style="color:var(--success);font-weight:700;font-size:.68rem">· 🕶️ discreto / anónimo</span></label>
+        <input type="text" id="ep-base" placeholder="0x..." autocomplete="off" spellcheck="false"/>
+        <label style="margin-top:10px">◎ USDC en Solana <span style="color:var(--success);font-weight:700;font-size:.68rem">· 🕶️ discreto / anónimo</span></label>
+        <input type="text" id="ep-solana" placeholder="Dirección Solana..." autocomplete="off" spellcheck="false"/>
+        <label style="margin-top:10px">💳 Stripe (email)</label>
+        <input type="email" id="ep-stripe" placeholder="tu@email.com"/>
+        <label style="margin-top:10px">📱 Bizum (teléfono)</label>
+        <input type="tel" id="ep-bizum" placeholder="+34 600 000 000"/>
+        <label style="margin-top:10px">💸 Revolut (@usuario)</label>
+        <input type="text" id="ep-revolut" placeholder="@usuario" autocomplete="off"/>
+      </div>
+      <div id="ep-error" style="display:none;margin-top:10px;padding:10px;border-radius:8px;background:#2a0a0a;color:var(--danger);font-size:.82rem;border:1px solid var(--danger);text-align:center"></div>
+
+      <!-- Stripe Connect — payouts automáticos -->
+      <div style="margin-top:16px;padding:12px;border-radius:8px;background:#1a2a14;border:1px solid var(--success)">
+        <div style="font-size:0.85rem;font-weight:700;color:var(--success);margin-bottom:6px">⚡ Pagos automáticos por Stripe</div>
+        <div style="font-size:0.74rem;color:var(--muted);margin-bottom:10px">
+          Activa la transferencia automática del 85% de cada viaje a tu cuenta bancaria. Requiere verificación KYC (DNI + IBAN, ~5 min).
+        </div>
+        <div id="connect-status" style="font-size:0.78rem;margin-bottom:10px">⏳ Comprobando estado...</div>
+        <button class="btn btn-success" id="btn-connect-onboard" style="display:none" onclick="startConnectOnboarding()">
+          🚀 Activar pagos automáticos
+        </button>
+        <button class="btn" id="btn-connect-recheck" style="display:none;background:transparent;color:var(--success);border:1px solid var(--success)" onclick="refreshConnectStatus()">
+          🔄 Comprobar estado
+        </button>
+      </div>
+
+      <button class="btn btn-primary" style="margin-top:14px" onclick="saveEditProfile()">💾 Guardar cambios</button>
+      <button class="btn" style="background:transparent;border:1px solid var(--border);color:var(--muted);margin-top:8px" onclick="closeEditProfile()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- Firebase compat para sincronización real-time con clientes -->
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-functions-compat.js"></script>
+<script src="firebase-store.js"></script>
+<script>
+'use strict';
+// ═══════════════════════════════════════════
+//  TAXIGO IBIZA — PANEL CONDUCTOR  v2.0
+// ═══════════════════════════════════════════
+
+// Tipos de vehículo soportados (deben coincidir con los del cliente index.html)
+const VEHICLE_TYPES_DRV = {
+  comfort: { name: 'Comfort',    icon: '🚗', pax: 4 },
+  van:     { name: 'Coach Van',  icon: '🚐', pax: 6 },
+  vanxl:   { name: 'Van XL',     icon: '🚌', pax: 8 }
+};
+
+let drv = { name:'', payMethod:'', payAddress:'', carModel:'', vehicleType:'comfort', vehiclePax:4, available:false, activeTrip:null, stage:0, earned:0, trips:0 };
+let pendingTripId = null;
+const settledTripIds = new Set();
+let dLang = localStorage.getItem('taxigo_lang') || 'es';
+function toggleLangDrv() {
+  dLang = dLang === 'es' ? 'en' : 'es';
+  localStorage.setItem('taxigo_lang', dLang);
+  document.getElementById('lang-btn-drv').textContent = dLang === 'es' ? '🇬🇧 EN' : '🇪🇸 ES';
+  // Update static labels
+  document.getElementById('avail-lbl').textContent = drv.available
+    ? (dLang==='en'?'Active':'Activo')
+    : (dLang==='en'?'Inactive':'Inactivo');
+  // Refresh availability section header
+  const secHdrs = document.querySelectorAll('.sec-hdr');
+  if (secHdrs[0]) secHdrs[0].childNodes[0].textContent = dLang==='en'?'Available rides ':'Viajes disponibles ';
+  if (secHdrs[1]) secHdrs[1].childNodes[0].textContent = dLang==='en'?'Completed today ':'Completados hoy ';
+}
+function initLangDrv() {
+  document.getElementById('lang-btn-drv').textContent = dLang === 'es' ? '🇬🇧 EN' : '🇪🇸 ES';
+}
+let popupTimer = null;
+let driverMap, driverMarker, routeLayer;
+
+// ── Registro / Login ──
+// Métodos de cobro soportados. Cada conductor puede registrar uno o varios.
+const PAY_INFO = {
+  base_usdc:   { icon:'🔵', name:'USDC Base'   },
+  solana_usdc: { icon:'◎',  name:'USDC Solana' },
+  stripe:      { icon:'💳', name:'Stripe'      },
+  bizum:       { icon:'📱', name:'Bizum'       },
+  revolut:     { icon:'💸', name:'Revolut'     }
+};
+
+function showTab(tab) {
+  document.getElementById('form-reg').style.display   = tab === 'reg'   ? 'block' : 'none';
+  document.getElementById('form-login').style.display = tab === 'login' ? 'block' : 'none';
+  document.getElementById('tab-reg').classList.toggle('active',   tab === 'reg');
+  document.getElementById('tab-login').classList.toggle('active', tab === 'login');
+  // Limpia error anterior al cambiar de tab
+  const err = document.getElementById('login-error');
+  if (err) { err.style.display = 'none'; err.textContent = ''; }
+}
+
+function showLoginError(msg) {
+  const el = document.getElementById('login-error');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function getSavedProfiles() {
+  try { return JSON.parse(localStorage.getItem('taxigo_driver_profiles') || '[]'); } catch(e) { return []; }
+}
+
+function saveProfile(profile) {
+  const profiles = getSavedProfiles();
+  const exists = profiles.findIndex(p => p.nick.toLowerCase() === profile.nick.toLowerCase());
+  if (exists >= 0) profiles[exists] = profile; else profiles.push(profile);
+  localStorage.setItem('taxigo_driver_profiles', JSON.stringify(profiles));
+}
+
+function doRegister() {
+  const nick        = document.getElementById('reg-nick').value.trim();
+  const vehicleType = document.getElementById('reg-vehicle').value;
+  const base        = document.getElementById('reg-base').value.trim();
+  const solana      = document.getElementById('reg-solana').value.trim();
+  const stripe      = document.getElementById('reg-stripe').value.trim();
+  const bizum       = document.getElementById('reg-bizum').value.trim();
+  const revolut     = document.getElementById('reg-revolut').value.trim();
+  const pin         = document.getElementById('reg-pin').value.trim();
+  const pin2        = document.getElementById('reg-pin2').value.trim();
+
+  if (!VEHICLE_TYPES_DRV[vehicleType]) { showToast('Elige tu tipo de vehículo'); return; }
+
+  if (!nick)             { showToast('Introduce un apodo'); return; }
+  if (nick.length < 3)   { showToast('El apodo debe tener al menos 3 caracteres'); return; }
+  if (!base && !solana && !stripe && !bizum && !revolut) {
+    showToast('Rellena al menos un método de cobro'); return;
+  }
+
+  // Validaciones de formato (solo si el campo está relleno)
+  if (base    && !/^0x[a-fA-F0-9]{40}$/.test(base))               { showToast('La dirección Base debe empezar por 0x y tener 42 caracteres'); return; }
+  if (solana  && !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(solana))   { showToast('La dirección Solana no parece válida'); return; }
+  if (stripe  && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(stripe))      { showToast('Email Stripe no válido'); return; }
+  if (bizum   && !/^\+?\d[\d\s\-]{7,}$/.test(bizum))              { showToast('Teléfono Bizum no válido'); return; }
+  if (revolut && !/^@?[A-Za-z0-9._-]{3,30}$/.test(revolut))       { showToast('Usuario de Revolut no válido (ej. @miusuario)'); return; }
+
+  if (!/^\d{4,6}$/.test(pin))  { showToast('El PIN debe tener entre 4 y 6 dígitos'); return; }
+  if (pin !== pin2)            { showToast('Los dos PIN no coinciden'); return; }
+
+  // payments = mapa con SOLO los métodos que el conductor rellenó
+  const payments = {};
+  if (base)    payments.base_usdc   = base;
+  if (solana)  payments.solana_usdc = solana;
+  if (stripe)  payments.stripe      = stripe;
+  if (bizum)   payments.bizum       = bizum;
+  if (revolut) payments.revolut     = revolut.startsWith('@') ? revolut : '@' + revolut;
+
+  const vt = VEHICLE_TYPES_DRV[vehicleType];
+  const profile = {
+    nick, payments, pin,
+    carModel: '',
+    vehicleType,
+    vehiclePax: vt.pax,
+    createdAt: Date.now()
+  };
+  saveProfile(profile);
+  enterApp(profile);
+  // Aviso suave para que complete el modelo del coche
+  setTimeout(() => showToast('💡 No olvides añadir el modelo de tu coche en "Editar perfil"'), 600);
+}
+
+// Migra un perfil legacy (con method+address) al nuevo formato { payments: {...} }
+function migrateProfile(p) {
+  if (p && p.payments) return p; // ya nuevo
+  if (p && p.method && p.address) {
+    return { ...p, payments: { [p.method]: p.address } };
+  }
+  return p;
+}
+
+function openDrvAbout()  { document.getElementById('drv-about-modal').style.display = 'block'; }
+function closeDrvAbout() { document.getElementById('drv-about-modal').style.display = 'none'; }
+
+// ── Modal "Cómo y cuándo cobras" (obligatorio aceptar la 1ª vez) ──
+let piRequiresAccept = false;
+const PAYOUTS_INFO_KEY = 'taxigo_driver_payouts_info_accepted_v1';
+
+function openPayoutsInfo(requireAccept) {
+  piRequiresAccept = !!requireAccept;
+  const closeBtn = document.getElementById('pi-close-btn');
+  if (closeBtn) closeBtn.style.display = requireAccept ? 'none' : 'block';
+  document.getElementById('payouts-info-modal').style.display = 'block';
+}
+function closePayoutsInfo() {
+  if (piRequiresAccept) return; // no se puede cerrar sin aceptar
+  document.getElementById('payouts-info-modal').style.display = 'none';
+}
+function acceptPayoutsInfo() {
+  try {
+    const accepted = JSON.parse(localStorage.getItem(PAYOUTS_INFO_KEY) || '[]');
+    if (drv.name && !accepted.includes(drv.name.toLowerCase())) {
+      accepted.push(drv.name.toLowerCase());
+      localStorage.setItem(PAYOUTS_INFO_KEY, JSON.stringify(accepted));
+    }
+  } catch (e) {}
+  piRequiresAccept = false;
+  document.getElementById('payouts-info-modal').style.display = 'none';
+  showToast('✅ Listo, ya puedes recibir viajes');
+}
+
+// Comprueba si este conductor ya aceptó el aviso (por apodo, persistente)
+function payoutsInfoAcceptedFor(nick) {
+  if (!nick) return false;
+  try {
+    const accepted = JSON.parse(localStorage.getItem(PAYOUTS_INFO_KEY) || '[]');
+    return accepted.includes(nick.toLowerCase());
+  } catch (e) { return false; }
+}
+
+// ── Editar mi perfil (modal accesible desde el header ✏️) ──
+function openEditProfile() {
+  if (!drv || !drv.name) return;
+  document.getElementById('ep-car').value     = drv.carModel || '';
+  const vsel = document.getElementById('ep-vehicle');
+  if (vsel) vsel.value = drv.vehicleType || 'comfort';
+  document.getElementById('ep-base').value    = (drv.payments && drv.payments.base_usdc)   || '';
+  document.getElementById('ep-solana').value  = (drv.payments && drv.payments.solana_usdc) || '';
+  document.getElementById('ep-stripe').value  = (drv.payments && drv.payments.stripe)      || '';
+  document.getElementById('ep-bizum').value   = (drv.payments && drv.payments.bizum)       || '';
+  document.getElementById('ep-revolut').value = (drv.payments && drv.payments.revolut)     || '';
+  const err = document.getElementById('ep-error');
+  if (err) { err.style.display = 'none'; err.textContent = ''; }
+  document.getElementById('edit-profile-modal').style.display = 'block';
+  // Comprobar estado de Stripe Connect al abrir el modal
+  refreshConnectStatus();
+}
+
+// ── Stripe Connect: onboarding + estado ──
+function setConnectStatusUI(html, color) {
+  const el = document.getElementById('connect-status');
+  if (!el) return;
+  el.innerHTML = html;
+  el.style.color = color || 'var(--muted)';
+}
+function showConnectButton(which) {
+  const btnOnboard = document.getElementById('btn-connect-onboard');
+  const btnRecheck = document.getElementById('btn-connect-recheck');
+  if (btnOnboard) btnOnboard.style.display = which === 'onboard' ? 'inline-block' : 'none';
+  if (btnRecheck) btnRecheck.style.display = which === 'recheck' ? 'inline-block' : 'none';
+}
+
+async function refreshConnectStatus() {
+  if (!drv || !drv.name) return;
+  if (!window.firebase || !window.firebase.functions) {
+    setConnectStatusUI('Firebase Functions SDK no cargado. Recarga la app.', 'var(--danger)');
+    return;
+  }
+  setConnectStatusUI('⏳ Comprobando estado...');
+  try {
+    const fn = window.firebase.app().functions('europe-west1').httpsCallable('getConnectAccountStatus');
+    const res = await fn({ driverNick: drv.name });
+    const d = res.data || {};
+    if (!d.hasAccount) {
+      setConnectStatusUI('⚪ No has activado los pagos automáticos todavía.', 'var(--muted)');
+      showConnectButton('onboard');
+      return;
+    }
+    if (d.status === 'active') {
+      setConnectStatusUI('✅ <strong>Pagos automáticos activos.</strong> Recibirás cada viaje en tu banco automáticamente.', 'var(--success)');
+      showConnectButton('recheck');
+      return;
+    }
+    if (d.status === 'pending_onboarding') {
+      setConnectStatusUI('⏳ Onboarding pendiente. Termina el registro en Stripe.', 'var(--primary)');
+      showConnectButton('onboard');
+      return;
+    }
+    if (d.status === 'pending_verification') {
+      setConnectStatusUI('🔍 Stripe está verificando tus datos. Suele tardar minutos u horas.', 'var(--primary)');
+      showConnectButton('recheck');
+      return;
+    }
+    setConnectStatusUI('Estado: ' + d.status, 'var(--muted)');
+    showConnectButton('recheck');
+  } catch (e) {
+    console.warn('[connect] getStatus error:', e);
+    setConnectStatusUI('⚠️ No se pudo comprobar el estado: ' + (e.message || e), 'var(--danger)');
+  }
+}
+
+async function startConnectOnboarding() {
+  if (!drv || !drv.name) return;
+  const btn = document.getElementById('btn-connect-onboard');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Preparando...'; }
+  try {
+    const fn = window.firebase.app().functions('europe-west1').httpsCallable('createConnectAccount');
+    const res = await fn({ driverNick: drv.name });
+    const url = res.data && res.data.url;
+    if (!url) throw new Error('Stripe no devolvió URL de onboarding');
+    // Abrir Stripe onboarding en navegador externo (Capacitor) o nueva pestaña (navegador)
+    try {
+      const cap = window.Capacitor;
+      if (cap && cap.Plugins && cap.Plugins.Browser) {
+        await cap.Plugins.Browser.open({ url, presentationStyle: 'fullscreen' });
+      } else {
+        window.open(url, '_blank', 'noopener');
+      }
+    } catch (e) {
+      window.open(url, '_blank', 'noopener');
+    }
+    setConnectStatusUI('⏳ Completa el formulario de Stripe en el navegador. Después vuelve aquí y pulsa "Comprobar estado".', 'var(--primary)');
+    showConnectButton('recheck');
+  } catch (e) {
+    console.error('[connect] onboarding error:', e);
+    setConnectStatusUI('⚠️ No se pudo iniciar el onboarding: ' + (e.message || e), 'var(--danger)');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🚀 Activar pagos automáticos'; }
+  }
+}
+function closeEditProfile() {
+  document.getElementById('edit-profile-modal').style.display = 'none';
+}
+function showEpError(msg) {
+  const el = document.getElementById('ep-error');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+function saveEditProfile() {
+  const car         = document.getElementById('ep-car').value.trim();
+  const vehicleType = document.getElementById('ep-vehicle').value;
+  const base        = document.getElementById('ep-base').value.trim();
+  const solana      = document.getElementById('ep-solana').value.trim();
+  const stripe      = document.getElementById('ep-stripe').value.trim();
+  const bizum       = document.getElementById('ep-bizum').value.trim();
+  const revolut     = document.getElementById('ep-revolut').value.trim();
+
+  if (!VEHICLE_TYPES_DRV[vehicleType]) { showEpError('Tipo de vehículo inválido'); return; }
+
+  if (!base && !solana && !stripe && !bizum && !revolut) {
+    showEpError('Debes mantener al menos un método de cobro'); return;
+  }
+  if (base    && !/^0x[a-fA-F0-9]{40}$/.test(base))             { showEpError('Dirección Base inválida'); return; }
+  if (solana  && !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(solana)) { showEpError('Dirección Solana inválida'); return; }
+  if (stripe  && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(stripe))    { showEpError('Email Stripe inválido'); return; }
+  if (bizum   && !/^\+?\d[\d\s\-]{7,}$/.test(bizum))            { showEpError('Teléfono Bizum inválido'); return; }
+  if (revolut && !/^@?[A-Za-z0-9._-]{3,30}$/.test(revolut))     { showEpError('Usuario Revolut inválido'); return; }
+
+  const payments = {};
+  if (base)    payments.base_usdc   = base;
+  if (solana)  payments.solana_usdc = solana;
+  if (stripe)  payments.stripe      = stripe;
+  if (bizum)   payments.bizum       = bizum;
+  if (revolut) payments.revolut     = revolut.startsWith('@') ? revolut : '@' + revolut;
+
+  const vt = VEHICLE_TYPES_DRV[vehicleType];
+
+  // Actualizar perfil en localStorage
+  const profiles = getSavedProfiles();
+  const idx = profiles.findIndex(p => p.nick.toLowerCase() === drv.name.toLowerCase());
+  if (idx >= 0) {
+    profiles[idx] = { ...profiles[idx], carModel: car, vehicleType, vehiclePax: vt.pax, payments };
+    localStorage.setItem('taxigo_driver_profiles', JSON.stringify(profiles));
+  }
+
+  // Actualizar estado en memoria
+  drv.carModel    = car;
+  drv.vehicleType = vehicleType;
+  drv.vehiclePax  = vt.pax;
+  drv.payments    = payments;
+  const order = ['base_usdc', 'solana_usdc', 'stripe', 'bizum', 'revolut'];
+  const primary = order.find(k => payments[k]);
+  drv.payMethod  = primary || '';
+  drv.payAddress = primary ? payments[primary] : '';
+
+  // Refrescar UI del header
+  const carEl = document.getElementById('s-car');
+  if (carEl) carEl.textContent = drv.carModel || '—';
+  const methodsHtml = Object.keys(drv.payments).map(k => {
+    const info = PAY_INFO[k] || { icon:'❓', name:k };
+    return `<span title="${info.name}">${info.icon}</span>`;
+  }).join(' ');
+  document.getElementById('spay').innerHTML = methodsHtml || '—';
+
+  closeEditProfile();
+  showToast('✅ Perfil actualizado');
+}
+
+// ── Bloqueo anti fuerza-bruta: 5 intentos fallidos = 15 min de bloqueo ──
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutos
+const ATTEMPTS_KEY = 'taxigo_login_attempts';
+
+function getAttempts() {
+  try { return JSON.parse(localStorage.getItem(ATTEMPTS_KEY) || '{}'); }
+  catch (e) { return {}; }
+}
+function setAttempts(obj) {
+  try { localStorage.setItem(ATTEMPTS_KEY, JSON.stringify(obj)); } catch (e) {}
+}
+function getAttemptRecord(nickLower) {
+  const all = getAttempts();
+  return all[nickLower] || { count: 0, lockedUntil: 0 };
+}
+function recordFailedAttempt(nickLower) {
+  const all = getAttempts();
+  const rec = all[nickLower] || { count: 0, lockedUntil: 0 };
+  rec.count = (rec.count || 0) + 1;
+  rec.lastAttempt = Date.now();
+  if (rec.count >= MAX_LOGIN_ATTEMPTS) {
+    rec.lockedUntil = Date.now() + LOCKOUT_DURATION_MS;
+  }
+  all[nickLower] = rec;
+  setAttempts(all);
+  return rec;
+}
+function resetAttempts(nickLower) {
+  const all = getAttempts();
+  if (all[nickLower]) { delete all[nickLower]; setAttempts(all); }
+}
+function isLocked(nickLower) {
+  const rec = getAttemptRecord(nickLower);
+  if (rec.lockedUntil && rec.lockedUntil > Date.now()) return rec.lockedUntil;
+  // Si el bloqueo ya expiró, lo limpiamos para que vuelva a tener intentos
+  if (rec.lockedUntil && rec.lockedUntil <= Date.now()) resetAttempts(nickLower);
+  return false;
+}
+function formatRemaining(ms) {
+  const sec = Math.ceil(ms / 1000);
+  if (sec < 60) return sec + ' s';
+  const m = Math.ceil(sec / 60);
+  return m + ' min';
+}
+
+function doLogin() {
+  const nick = document.getElementById('login-nick').value.trim();
+  const pin  = document.getElementById('login-pin').value.trim();
+
+  if (!nick) { showLoginError('Introduce tu apodo'); return; }
+  if (!pin)  { showLoginError('Introduce tu PIN'); return; }
+
+  const nickLower = nick.toLowerCase();
+
+  // 1) ¿Está este apodo bloqueado por demasiados intentos?
+  const lockedUntil = isLocked(nickLower);
+  if (lockedUntil) {
+    const remaining = lockedUntil - Date.now();
+    showLoginError(`🔒 Demasiados intentos fallidos. Vuelve a probar en ${formatRemaining(remaining)}.`);
+    document.getElementById('login-pin').value = '';
+    return;
+  }
+
+  const profiles = getSavedProfiles();
+  const profile = profiles.find(p => p.nick.toLowerCase() === nickLower);
+
+  // 2) Si no existe el perfil, también contamos como intento fallido
+  //    (evita enumerar apodos y previene fuerza-bruta de nombres)
+  if (!profile) {
+    const rec = recordFailedAttempt(nickLower);
+    const left = MAX_LOGIN_ATTEMPTS - rec.count;
+    if (rec.lockedUntil) {
+      showLoginError(`🔒 Apodo o PIN incorrectos. Acceso bloqueado durante 15 min por demasiados intentos.`);
+    } else {
+      showLoginError(`Apodo o PIN incorrectos${left > 0 && left <= 3 ? ` · te quedan ${left} intentos` : ''}`);
+    }
+    document.getElementById('login-pin').value = '';
+    return;
+  }
+
+  // 3) Compatibilidad con perfiles antiguos sin PIN
+  if (!profile.pin) {
+    if (!confirm(`⚠️ Tu perfil fue creado antes de la versión con PIN.\n\n¿Quieres entrar ahora? La próxima vez te recomendaremos configurar uno.`)) return;
+    resetAttempts(nickLower);
+    enterApp(profile);
+    return;
+  }
+
+  // 4) PIN incorrecto → cuenta como intento
+  if (pin !== profile.pin) {
+    const rec = recordFailedAttempt(nickLower);
+    const left = MAX_LOGIN_ATTEMPTS - rec.count;
+    if (rec.lockedUntil) {
+      showLoginError(`🔒 Acceso bloqueado por 15 min. Demasiados intentos fallidos.`);
+    } else {
+      showLoginError(`Apodo o PIN incorrectos${left > 0 && left <= 3 ? ` · te quedan ${left} intentos antes del bloqueo` : ''}`);
+    }
+    document.getElementById('login-pin').value = '';
+    return;
+  }
+
+  // 5) Login OK → resetear contador y entrar
+  resetAttempts(nickLower);
+  enterApp(profile);
+}
+
+function enterApp(profile) {
+  profile = migrateProfile(profile);  // soporte perfiles antiguos { method, address }
+  drv.name        = profile.nick;
+  drv.payments    = profile.payments || {};
+  drv.carModel    = profile.carModel || '';
+  drv.vehicleType = profile.vehicleType || 'comfort';
+  drv.vehiclePax  = profile.vehiclePax || (VEHICLE_TYPES_DRV[drv.vehicleType]?.pax) || 4;
+
+  // Método "principal" (el primero disponible) — para mostrar resumen en el header
+  const order = ['base_usdc', 'solana_usdc', 'stripe'];
+  const primary = order.find(k => drv.payments[k]);
+  drv.payMethod  = primary || '';
+  drv.payAddress = primary ? drv.payments[primary] : '';
+
+  document.getElementById('sn').textContent = profile.nick;
+  // Resumen de cobros: icono por cada método disponible
+  const methodsHtml = Object.keys(drv.payments).map(k => {
+    const info = PAY_INFO[k] || { icon: '❓', name: k };
+    return `<span title="${info.name}">${info.icon}</span>`;
+  }).join(' ');
+  document.getElementById('spay').innerHTML = methodsHtml || '—';
+
+  const carEl = document.getElementById('s-car');
+  if (carEl) {
+    const vt = VEHICLE_TYPES_DRV[drv.vehicleType] || VEHICLE_TYPES_DRV.comfort;
+    const modelStr = drv.carModel ? drv.carModel : '—';
+    carEl.innerHTML = `${vt.icon} ${modelStr} <span style="color:var(--muted);font-size:.72rem">(${vt.name} · ${vt.pax} pax)</span>`;
+  }
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app-shell').style.display = 'flex';
+  initMap();
+  startPolling();
+  startActiveDriversCounter();
+  initPushNotifications();   // Registra FCM token y guarda en Firestore
+  drv.available = true;
+  document.getElementById('avail-sw').classList.add('on');
+  document.getElementById('avail-lbl').textContent = '🟢 Activo';
+
+  // Si es la primera vez de este conductor, mostrar y exigir aceptar el aviso de cobros
+  if (!payoutsInfoAcceptedFor(drv.name)) {
+    setTimeout(() => openPayoutsInfo(true), 500);
+  }
+}
+
+// ── Push notifications (FCM vía plugin @capacitor/push-notifications) ──
+// Solo en APK Android (no en navegador web). En navegador queda no-op.
+async function initPushNotifications() {
+  try {
+    if (!window.Capacitor || !window.Capacitor.isNativePlatform || !window.Capacitor.isNativePlatform()) {
+      console.info('[push] No es plataforma nativa, FCM desactivado en navegador.');
+      return;
+    }
+    const PushNotifications = window.Capacitor.Plugins && window.Capacitor.Plugins.PushNotifications;
+    if (!PushNotifications) {
+      console.warn('[push] Plugin PushNotifications no disponible.');
+      return;
+    }
+
+    // Pedir permiso
+    let perm = await PushNotifications.checkPermissions();
+    if (perm.receive !== 'granted') {
+      perm = await PushNotifications.requestPermissions();
+    }
+    if (perm.receive !== 'granted') {
+      console.warn('[push] Permiso denegado por el usuario.');
+      showToast('🔕 Push desactivado. Sin notificaciones cuando la app esté cerrada.');
+      return;
+    }
+
+    // Listeners de registro
+    PushNotifications.removeAllListeners();
+    PushNotifications.addListener('registration', async (token) => {
+      console.info('[push] FCM token:', token.value);
+      // Guardar token en Firestore en drivers/{nick}/fcmTokens (array de tokens)
+      try {
+        const dbRef = window.firebase && window.firebase.firestore
+          ? window.firebase.firestore().collection('drivers').doc(drv.name)
+          : null;
+        if (dbRef) {
+          const arrUnion = window.firebase.firestore.FieldValue.arrayUnion(token.value);
+          await dbRef.set({
+            nick: drv.name,
+            carModel: drv.carModel || '',
+            fcmTokens: arrUnion,
+            updatedAt: Date.now()
+          }, { merge: true });
+          console.info('[push] Token guardado en Firestore para', drv.name);
+        }
+      } catch (e) { console.warn('[push] No se pudo guardar token:', e); }
+    });
+
+    PushNotifications.addListener('registrationError', err => {
+      console.error('[push] Error de registro:', err);
+    });
+
+    // Push recibido con app en foreground → reaccionar (la lógica de viaje ya se maneja vía Firestore watcher)
+    PushNotifications.addListener('pushNotificationReceived', notif => {
+      console.info('[push] Recibido en foreground:', notif);
+      // Pequeño feedback adicional al usuario
+      showToast('🔔 ' + (notif.title || 'Nuevo aviso'));
+      if (navigator.vibrate) navigator.vibrate([150, 80, 150]);
+    });
+
+    // Usuario tap en una push con app cerrada/background
+    PushNotifications.addListener('pushNotificationActionPerformed', () => {
+      // Al abrir desde el push, el watcher de Firestore ya cargará el nuevo viaje
+      console.info('[push] Notificación abierta por el usuario');
+    });
+
+    await PushNotifications.register();
+  } catch (e) {
+    console.error('[push] initPushNotifications falló:', e);
+  }
+}
+
+// ── Contador "Conductores activos" — siempre muestra mínimo 6 ──
+// Si en el futuro tenemos un contador real de drivers conectados (vía Firestore),
+// usamos max(MIN, realCount). Por ahora oscila entre MIN y MIN+3.
+const MIN_ACTIVE_DRIVERS = 6;
+function updateActiveDriversCount() {
+  const el = document.getElementById('active-drivers');
+  if (!el) return;
+  // Oscilación natural basada en el minuto, varía suavemente
+  const minute = Math.floor(Date.now() / 60000);
+  const variation = (Math.sin(minute * 0.7) + 1) * 2 + Math.sin(minute * 1.3); // 0..6
+  const realCount = 0; // TODO: contar conductores con viajes activos en últimas 2h
+  const count = Math.max(MIN_ACTIVE_DRIVERS + Math.floor(variation), realCount);
+  el.textContent = count;
+}
+function startActiveDriversCounter() {
+  updateActiveDriversCount();
+  setInterval(updateActiveDriversCount, 30000); // refresca cada 30s
+}
+
+// Mostrar tab de login si ya hay perfiles guardados
+window.addEventListener('DOMContentLoaded', () => {
+  const profiles = getSavedProfiles();
+  if (profiles.length > 0) showTab('login');
+  initLangDrv();
+});
+
+// ── Toggle ──
+function toggleAvailability() {
+  drv.available = !drv.available;
+  document.getElementById('avail-sw').classList.toggle('on', drv.available);
+  document.getElementById('avail-lbl').textContent = drv.available ? '🟢 Activo' : '⚫ Inactivo';
+  if (drv.available) showToast('✅ Disponible para recibir viajes');
+}
+
+// ── Map ──
+function initMap() {
+  driverMap = L.map('driver-map', { tap:true }).setView([38.9067, 1.4206], 12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'© OpenStreetMap' }).addTo(driverMap);
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(pos => {
+      const ll = [pos.coords.latitude, pos.coords.longitude];
+      driverMap.setView(ll, 14);
+      driverMarker = L.marker(ll, { icon: taxiIcon() }).addTo(driverMap).bindPopup('🚖 Tú');
+    });
+  }
+}
+
+function taxiIcon() {
+  return L.divIcon({
+    html:'<div style="font-size:22px;line-height:1">🚖</div>',
+    iconSize:[28,28], iconAnchor:[14,14], className:''
+  });
+}
+
+function showRouteOnMap(trip) {
+  if (!driverMap) return;
+  if (routeLayer) { driverMap.removeLayer(routeLayer); routeLayer = null; }
+  const ol = trip.originLatLng, dl = trip.destLatLng;
+  if (!ol || !dl) return;
+  const orig = L.latLng(ol.lat, ol.lng), dest = L.latLng(dl.lat, dl.lng);
+  L.marker(orig, { icon: L.divIcon({ html:'<div style="font-size:18px">📍</div>', iconSize:[24,24], iconAnchor:[12,12], className:'' }) }).addTo(driverMap);
+  L.marker(dest, { icon: L.divIcon({ html:'<div style="font-size:18px">🏁</div>', iconSize:[24,24], iconAnchor:[12,12], className:'' }) }).addTo(driverMap);
+  routeLayer = L.polyline([orig, dest], { color:'#f4c430', weight:4, dashArray:'10,6' }).addTo(driverMap);
+  driverMap.fitBounds(routeLayer.getBounds(), { padding:[50,50] });
+}
+
+// ── Watchers (real-time vía Firestore, fallback localStorage) ──
+let lastKnownIds = new Set();
+let unsubSearching = null;
+let unsubMine = null;
+
+// Comprueba si el conductor puede aceptar el viaje según su nº de plazas
+function canAcceptTrip(trip) {
+  if (!trip) return false;
+  const tripPax = parseInt(trip.vehiclePax, 10) || 4;
+  return (drv.vehiclePax || 4) >= tripPax;
+}
+
+function startPolling() {
+  // Viajes disponibles (status === 'searching')
+  if (unsubSearching) unsubSearching();
+  unsubSearching = tgStore.watchSearching(list => {
+    // Filtrar por status + por compatibilidad de plazas del conductor
+    const available = list.filter(t => t && t.status === 'searching' && canAcceptTrip(t));
+
+    if (drv.available && !drv.activeTrip) {
+      const newest = available.find(t => !lastKnownIds.has(t.id));
+      if (newest) { lastKnownIds.add(newest.id); showIncomingPopup(newest); }
+    }
+    available.forEach(t => lastKnownIds.add(t.id));
+    renderAvailable(available);
+  });
+
+  // Mis viajes (aceptados + completados) — solo cuando ya hay nombre
+  rewatchMine();
+}
+
+// Memoria del estado de payoutSent por trip — para detectar flip false→true y notificar
+const lastPayoutState = new Map();
+
+// Devuelve URL al explorer según red del payout
+function getExplorerUrl(trip) {
+  const hash = trip.payoutTxHash;
+  if (!hash) return '';
+  if (trip.payoutNetwork === 'solana') return 'https://solscan.io/tx/' + hash;
+  return 'https://basescan.org/tx/' + hash; // default base
+}
+function getNetworkLabel(trip) {
+  if (trip.payoutNetwork === 'solana') return '◎ USDC en Solana';
+  return '🔵 USDC en Base';
+}
+
+// Notificación visual + sonido + vibración cuando llega un cobro
+function notifyPayoutReceived(trip) {
+  const payout = trip.driverPayout || (+(parseFloat(trip.price||0)*0.85).toFixed(2));
+  const isOnchain = !!trip.payoutTxHash;
+
+  // Vibración fuerte
+  if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 400]);
+
+  // Beep de éxito (más alegre que el de viaje nuevo)
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [0, 150, 300].forEach((delay, i) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type = 'sine';
+      o.frequency.value = 600 + i*200; // ascendente
+      g.gain.setValueAtTime(.35, ctx.currentTime + delay/1000);
+      g.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + delay/1000 + .25);
+      o.start(ctx.currentTime + delay/1000);
+      o.stop(ctx.currentTime + delay/1000 + .25);
+    });
+  } catch(e) {}
+
+  // Modal "💰 Acabas de cobrar"
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px';
+  modal.innerHTML = `
+    <div style="background:var(--card);border:2px solid var(--success);border-radius:var(--radius);padding:28px;max-width:360px;text-align:center;animation:popIn .3s cubic-bezier(.175,.885,.32,1.275)">
+      <div style="font-size:4rem;margin-bottom:8px">💰</div>
+      <div style="font-size:1.3rem;font-weight:900;color:var(--success);margin-bottom:6px">¡Acabas de cobrar!</div>
+      <div style="font-size:2.4rem;font-weight:900;color:var(--primary);margin:12px 0">${payout} €</div>
+      ${isOnchain ? `
+        <div style="background:#082a1c;border-radius:8px;padding:10px;margin:12px 0;font-size:0.75rem">
+          <strong>${getNetworkLabel(trip)}</strong><br>
+          <span style="color:var(--muted);font-family:monospace;font-size:0.7rem">${trip.payoutTxHash.slice(0,10)}…${trip.payoutTxHash.slice(-6)}</span><br>
+          <a href="${getExplorerUrl(trip)}" target="_blank" rel="noopener" style="color:var(--info);font-size:0.78rem">Ver en explorer ↗</a>
+        </div>` : `
+        <div style="font-size:0.82rem;color:var(--muted);margin:8px 0">Pago enviado por la plataforma</div>
+      `}
+      <button class="btn btn-success" style="margin-top:10px" onclick="this.closest('div[style*=\\'position:fixed\\']').remove()">¡Genial! 🎉</button>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  // Auto-cierre a los 8s
+  setTimeout(() => { if (modal.parentNode) modal.remove(); }, 8000);
+
+  showToast(`💰 +${payout} € cobrados`);
+}
+
+function rewatchMine() {
+  if (!drv.name) return;
+  if (unsubMine) unsubMine();
+  unsubMine = tgStore.watchByDriver(drv.name, mine => {
+    const accepted  = mine.filter(t => t.status === 'accepted');
+    const completed = mine.filter(t => t.status === 'completed');
+
+    // Detectar cobros nuevos: payoutSent pasó de false/undefined a true
+    completed.forEach(t => {
+      const prev = lastPayoutState.get(t.id);
+      if (prev === false && t.payoutSent === true) {
+        notifyPayoutReceived(t);
+      }
+      lastPayoutState.set(t.id, !!t.payoutSent);
+    });
+
+    // Si tengo uno aceptado y no lo había detectado todavía
+    if (!drv.activeTrip && accepted.length) {
+      drv.activeTrip = accepted[0];
+      drv.stage = drv.activeTrip.stage || 1;
+      showActiveBanner(drv.activeTrip);
+      showRouteOnMap(drv.activeTrip);
+      updateStageChips(drv.stage);
+    }
+
+    // Si el cliente o el conductor completó el viaje activo
+    if (drv.activeTrip) {
+      const upd = mine.find(t => t.id === drv.activeTrip.id);
+      if (upd && upd.status === 'completed') handleCompleted(upd);
+    }
+
+    renderDone(completed);
+  });
+}
+
+// ── Incoming popup ──
+let popBarInterval;
+// Formato bonito de hora de recogida en el popup/banner del conductor
+function pickupTimeHtml(trip) {
+  const at = parseInt(trip.pickupAtMs, 10) || 0;
+  if (!at) {
+    // Sin timestamp absoluto (viajes legacy) → solo etiqueta
+    return trip.pickupLabel ? `🕐 ${trip.pickupLabel}` : '🟢 RECOGIDA AHORA';
+  }
+  const now = Date.now();
+  const diff = at - now; // ms
+  const hh = String(new Date(at).getHours()).padStart(2,'0');
+  const mm = String(new Date(at).getMinutes()).padStart(2,'0');
+  const horaStr = `${hh}:${mm}`;
+  if (diff <= 60000) {
+    // Es ahora o ya pasó
+    return `🟢 RECOGIDA <strong style="font-size:1.05em">AHORA</strong> · ${horaStr}`;
+  }
+  // En el futuro
+  const minutes = Math.round(diff / 60000);
+  if (minutes < 60) {
+    return `🕐 Recogida a las <strong style="font-size:1.05em">${horaStr}</strong> · en ${minutes} min`;
+  }
+  const hours = Math.floor(minutes / 60);
+  const remMin = minutes % 60;
+  return `🕐 Recogida a las <strong style="font-size:1.05em">${horaStr}</strong> · en ${hours}h${remMin?' '+remMin+'min':''}`;
+}
+
+function showIncomingPopup(trip) {
+  if (document.getElementById('incoming-popup').style.display === 'flex') return;
+  pendingTripId = trip.id;
+  const payout = trip.driverPayout || (+(parseFloat(trip.price)*0.85).toFixed(2));
+  const vIcon = trip.vehicleIcon || '🚗';
+  const vName = trip.vehicleName || 'Comfort';
+  document.getElementById('pop-price').textContent  = trip.price + ' €';
+  document.getElementById('pop-payout').textContent = payout + ' €';
+  const contactHtml = (trip.clientName || trip.clientPhone)
+    ? `<br><br><span style="color:var(--info);font-weight:700">👤 CLIENTE</span>` +
+      (trip.clientName ? `<br><strong>${trip.clientName}</strong>` : '') +
+      (trip.clientPhone ? `<br><a href="tel:${trip.clientPhone}" style="color:var(--info);font-size:0.95rem">📞 ${trip.clientPhone}</a>` : '')
+    : '';
+  // Hora de recogida destacada en grande arriba
+  const pickupBox = `<div style="background:#1a1200;border:2px solid var(--primary);border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:0.95rem;color:var(--primary);font-weight:700">${pickupTimeHtml(trip)}</div>`;
+  document.getElementById('pop-route').innerHTML =
+    pickupBox +
+    `<span style="font-size:0.85rem;color:var(--primary);font-weight:700">${vIcon} ${vName}</span><br><br>` +
+    `<span style="color:#3fb950;font-weight:700">📍 RECOGIDA</span><br>${trip.origin}<br><br>` +
+    `<span style="color:#f85149;font-weight:700">🏁 DESTINO</span><br>${trip.dest}` + contactHtml;
+  document.getElementById('incoming-popup').style.display = 'flex';
+
+  // Vibrar si disponible
+  if (navigator.vibrate) navigator.vibrate([300, 150, 300, 150, 300]);
+
+  // Sonido de alerta (beep sintético)
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [0, 200, 400].forEach(delay => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type = 'sine'; o.frequency.value = 880;
+      g.gain.setValueAtTime(.4, ctx.currentTime + delay/1000);
+      g.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + delay/1000 + .2);
+      o.start(ctx.currentTime + delay/1000);
+      o.stop(ctx.currentTime + delay/1000 + .2);
+    });
+  } catch(e) {}
+
+  // Countdown 30s
+  let secs = 30;
+  const timerEl  = document.getElementById('pop-timer');
+  const barEl    = document.getElementById('pop-bar');
+  clearInterval(popBarInterval);
+  popBarInterval = setInterval(() => {
+    secs--;
+    timerEl.textContent = `Se cierra en ${secs}s`;
+    barEl.style.width = (secs/30*100)+'%';
+    if (secs <= 0) { clearInterval(popBarInterval); closePopup(); }
+  }, 1000);
+}
+
+async function acceptCurrentTrip() {
+  clearInterval(popBarInterval);
+  closePopup();
+  if (!pendingTripId) return;
+  const trip = await tgStore.getTrip(pendingTripId);
+  if (!trip) { showToast('El viaje ya no está disponible'); return; }
+  if (trip.status !== 'searching') { showToast('El viaje ya fue aceptado'); return; }
+  if (!canAcceptTrip(trip)) {
+    const tripPax = parseInt(trip.vehiclePax, 10) || 4;
+    showToast(`❌ Necesita ${tripPax} plazas, tu vehículo tiene ${drv.vehiclePax}`);
+    return;
+  }
+
+  const patch = {
+    status: 'accepted',
+    stage: 1,
+    driverName: drv.name,
+    driverCar:  drv.carModel || '',
+    driver: {
+      name:       drv.name,
+      payMethod:  drv.payMethod,          // método principal
+      payAddress: drv.payAddress,         // dirección principal
+      payments:   drv.payments || {},     // TODOS los métodos disponibles
+      rating: 4.9,
+      eta: 5,
+      car: drv.carModel || ''
+    }
+  };
+  await tgStore.updateTrip(pendingTripId, patch);
+
+  const updated = { ...trip, ...patch };
+  drv.activeTrip = updated; drv.stage = 1;
+  showActiveBanner(updated); showRouteOnMap(updated);
+  rewatchMine();
+  showToast('✅ ¡Viaje aceptado! Ve a recoger al cliente.');
+  pendingTripId = null;
+}
+
+function rejectTrip() { clearInterval(popBarInterval); closePopup(); pendingTripId = null; }
+function closePopup() { document.getElementById('incoming-popup').style.display = 'none'; }
+
+// ── Active banner ──
+const COMISION_PLAT = 0.15;
+
+function showActiveBanner(trip) {
+  document.getElementById('active-banner').style.display = 'block';
+  document.getElementById('ab-price').textContent = trip.price + ' € (cliente)';
+  const payout = trip.driverPayout || (+(parseFloat(trip.price) * 0.85).toFixed(2));
+  document.getElementById('ab-payout').textContent = payout + ' €  (85%)';
+  document.getElementById('ab-route').innerHTML = '<strong>'+trip.origin+'</strong> → <strong>'+trip.dest+'</strong>';
+  updateStageChips(1);
+}
+
+const STAGES = ['sc1','sc2','sc3','sc4'];
+function updateStageChips(active) {
+  STAGES.forEach((id, i) => {
+    const el = document.getElementById(id);
+    el.classList.remove('done','active');
+    if (i+1 < active) el.classList.add('done');
+    else if (i+1 === active) el.classList.add('active');
+  });
+}
+
+function advanceStage() {
+  drv.stage++;
+  updateStageChips(drv.stage);
+  if (drv.stage >= 4) {
+    document.getElementById('btn-advance').style.display = 'none';
+    document.getElementById('btn-complete').style.display = 'inline-block';
+  }
+  // Propaga el cambio al cliente en vivo
+  if (drv.activeTrip) {
+    tgStore.updateTrip(drv.activeTrip.id, { stage: drv.stage })
+      .catch(e => console.warn('[driver] advanceStage:', e));
+  }
+}
+
+async function completeTrip() {
+  if (!drv.activeTrip) return;
+  const tripId = drv.activeTrip.id;
+  try {
+    await tgStore.updateTrip(tripId, { status: 'completed', completedAt: Date.now() });
+  } catch (e) { console.warn('[driver] completeTrip:', e); }
+  const fresh = await tgStore.getTrip(tripId);
+  handleCompleted(fresh || drv.activeTrip);
+}
+
+// Cancelar el viaje aceptado: vuelve al pool (status='searching') para otros conductores
+async function cancelActiveTrip() {
+  if (!drv.activeTrip) return;
+  const reason = window.prompt('¿Motivo de la cancelación? (opcional)', '');
+  if (reason === null) return;  // cancelado el prompt
+  if (!confirm('⚠️ Vas a cancelar este viaje y volverá a la lista para otros conductores.\n\nPiérdes este viaje. ¿Confirmar?')) return;
+
+  const tripId = drv.activeTrip.id;
+  const cancelEntry = { by: drv.name, at: Date.now(), reason: (reason || '').slice(0,200) };
+
+  try {
+    // Marcamos el viaje como disponible otra vez (sin driver)
+    const fresh = await tgStore.getTrip(tripId);
+    const history = Array.isArray(fresh?.cancellationHistory) ? fresh.cancellationHistory : [];
+    history.push(cancelEntry);
+
+    await tgStore.updateTrip(tripId, {
+      status: 'searching',
+      driverName: null,
+      driverCar:  null,
+      driver:     null,
+      stage:      null,
+      cancellationHistory: history,
+      cancellationCount: (fresh?.cancellationCount || 0) + 1,
+      lastCancelledAt: Date.now()
+    });
+
+    showToast('🚫 Viaje cancelado y devuelto a la lista');
+  } catch (e) {
+    console.error('[driver] cancelActiveTrip:', e);
+    showToast('⚠️ Error al cancelar: ' + (e.message || e));
+    return;
+  }
+
+  // Limpiar estado local
+  drv.activeTrip = null;
+  drv.stage = 0;
+  document.getElementById('active-banner').style.display = 'none';
+  document.getElementById('btn-advance').style.display = 'inline-block';
+  document.getElementById('btn-complete').style.display = 'none';
+  STAGES.forEach(id => { const e = document.getElementById(id); if (e) e.classList.remove('done','active'); });
+  const sc1 = document.getElementById('sc1');
+  if (sc1) sc1.classList.add('active');
+  // Quitar línea de ruta del mapa
+  if (routeLayer) { driverMap.removeLayer(routeLayer); routeLayer = null; }
+}
+
+function handleCompleted(trip) {
+  if (!trip || !trip.id || settledTripIds.has(trip.id)) return;
+  settledTripIds.add(trip.id);
+  const price  = parseFloat(trip.price) || 0;
+  const payout = parseFloat(trip.driverPayout) || +(price * 0.85).toFixed(2);
+  drv.earned += payout; drv.trips++;
+  drv.activeTrip = null; drv.stage = 0;
+  document.getElementById('active-banner').style.display = 'none';
+  document.getElementById('btn-advance').style.display = 'inline-block';
+  document.getElementById('btn-complete').style.display = 'none';
+  STAGES.forEach(id => { const e = document.getElementById(id); e.classList.remove('done','active'); });
+  document.getElementById('sc1').classList.add('active');
+  document.getElementById('st').textContent = drv.trips;
+  document.getElementById('se').textContent = drv.earned.toFixed(2) + ' €';
+  document.getElementById('sr').textContent = '⭐ 4.9';
+  showToast(`🎉 Viaje completado · +${payout.toFixed(2)} € para ti`);
+  if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+}
+
+// ── Render ──
+function renderAvailable(trips) {
+  document.getElementById('avail-count').textContent = trips.length;
+  const el = document.getElementById('trips-list');
+  if (!drv.available) {
+    el.innerHTML = '<div class="empty"><div class="e-icon">💤</div><div class="e-txt">Actívate para recibir viajes</div></div>';
+    return;
+  }
+  if (trips.length === 0) {
+    el.innerHTML = '<div class="empty"><div class="e-icon">🕐</div><div class="e-txt">Esperando viajes en Ibiza...</div></div>';
+    return;
+  }
+  el.innerHTML = trips.map(t => {
+    const payout = t.driverPayout || (+(parseFloat(t.price)*0.85).toFixed(2));
+    const vIcon = t.vehicleIcon || '🚗';
+    const vName = t.vehicleName || 'Comfort';
+    const vPax  = t.vehiclePax  || 4;
+    return `
+    <div class="trip-card new-trip">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+        <div>
+          <span class="badge-new">🔔 NUEVO</span>
+          <span style="margin-left:6px;font-size:0.78rem;color:var(--primary);font-weight:700">${vIcon} ${vName} · ${vPax} pax</span>
+        </div>
+        <div style="text-align:right">
+          <div class="tc-price">${t.price} €</div>
+          <div class="tc-dist">${t.dist} km · ${t.durationMin||'?'} min</div>
+        </div>
+      </div>
+      <div style="background:#0a1020;border-radius:10px;padding:10px 12px;margin-bottom:10px;border:1px solid var(--border)">
+        <div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:6px">
+          <span style="color:var(--success);font-size:1rem;margin-top:1px">📍</span>
+          <div>
+            <div style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Recogida</div>
+            <div style="font-weight:700;font-size:0.88rem;color:var(--success)">${t.origin}</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:flex-start">
+          <span style="color:var(--danger);font-size:1rem;margin-top:1px">🏁</span>
+          <div>
+            <div style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Destino</div>
+            <div style="font-weight:700;font-size:0.88rem;color:var(--danger)">${t.dest}</div>
+          </div>
+        </div>
+        ${(t.clientName || t.clientPhone) ? `<div style="display:flex;gap:8px;align-items:center;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
+          <span style="font-size:1rem">👤</span>
+          <div style="flex:1">
+            <div style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Cliente</div>
+            ${t.clientName ? `<div style="font-weight:700;font-size:0.88rem;color:var(--text)">${t.clientName}</div>` : ''}
+            ${t.clientPhone ? `<a href="tel:${t.clientPhone}" style="font-weight:700;font-size:0.85rem;color:var(--info);text-decoration:none">📞 ${t.clientPhone}</a>` : ''}
+          </div>
+        </div>` : ''}
+      </div>
+      <div style="background:#1a1200;border:1px solid var(--primary);border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:0.82rem;color:var(--primary);font-weight:700">${pickupTimeHtml(t)}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <span style="font-size:0.78rem;color:var(--muted)">${dLang==='en'?'Your cut (85%):':'Tu cobro (85%):'}</span>
+        <span style="font-size:1.1rem;font-weight:900;color:#3fb950">${payout} €</span>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-success btn-sm" onclick="quickAccept('${t.id}')">${dLang==='en'?'✅ Accept ride':'✅ Aceptar viaje'}</button>
+        <button class="btn btn-sm" style="background:var(--card2);color:var(--muted);min-height:44px;padding:10px 14px" onclick="previewTrip('${t.id}')">${dLang==='en'?'🗺️ View route':'🗺️ Ver ruta'}</button>
+      </div>
+    </div>
+  `}).join('');
+}
+
+function renderDone(trips) {
+  document.getElementById('done-count').textContent = trips.length;
+  const el = document.getElementById('done-list');
+  if (trips.length === 0) {
+    el.innerHTML = `<div class="empty" style="padding:20px"><div class="e-txt">${dLang==='en'?'No completed rides yet':'Sin viajes completados aún'}</div></div>`;
+    return;
+  }
+  el.innerHTML = trips.map(t => {
+    const paid = t.payoutSent;
+    const payout = t.driverPayout || (+(parseFloat(t.price)*0.85).toFixed(2));
+    const isOnchain = !!t.payoutTxHash;
+    const completedAt = t.completedAt || t.ts;
+    const minutesAgo = completedAt ? Math.floor((Date.now() - completedAt) / 60000) : 0;
+    const paidAt = t.payoutSentAt ? new Date(t.payoutSentAt).toLocaleString(dLang==='en'?'en-US':'es-ES', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : '';
+
+    let payoutBox;
+    if (paid) {
+      if (isOnchain) {
+        const shortHash = t.payoutTxHash.slice(0,10) + '…' + t.payoutTxHash.slice(-6);
+        payoutBox = `
+          <div style="padding:10px 12px;border-radius:8px;background:#082a1c;color:var(--success);border:1px solid var(--success)">
+            <div style="font-size:0.82rem;font-weight:700;display:flex;align-items:center;justify-content:space-between">
+              <span>${getNetworkLabel(t)}</span>
+              <span style="font-size:0.88rem;font-weight:900">${t.payoutAmountUSDC || payout} USDC</span>
+            </div>
+            <div style="font-size:0.7rem;color:var(--muted);margin-top:4px">${paidAt}</div>
+            <a href="${getExplorerUrl(t)}" target="_blank" rel="noopener" style="font-size:0.72rem;color:var(--info);text-decoration:none;font-family:monospace">${shortHash} ↗</a>
+          </div>`;
+      } else {
+        payoutBox = `
+          <div style="padding:10px 12px;border-radius:8px;background:#082a1c;color:var(--success);border:1px solid var(--success);text-align:center">
+            <div style="font-size:0.85rem;font-weight:700">✅ ${dLang==='en'?'Paid by the platform':'Pagado por la plataforma'}</div>
+            ${paidAt ? `<div style="font-size:0.7rem;color:var(--muted);margin-top:3px">${paidAt}</div>` : ''}
+          </div>`;
+      }
+    } else {
+      const sla = dLang==='en' ? 'Within 24h' : 'En menos de 24h';
+      payoutBox = `
+        <div style="padding:10px 12px;border-radius:8px;background:#1a1200;color:var(--primary);border:1px solid var(--primary)">
+          <div style="font-size:0.82rem;font-weight:700;display:flex;align-items:center;justify-content:space-between">
+            <span>⏳ ${dLang==='en'?'Payout in process':'Cobro en proceso'}</span>
+            <span style="font-size:0.78rem">${sla}</span>
+          </div>
+          <div style="font-size:0.7rem;color:var(--muted);margin-top:3px">${dLang==='en'?'Completed':'Completado'} ${minutesAgo < 60 ? `${dLang==='en'?'just now':'hace '+minutesAgo+' min'}` : `${dLang==='en'?Math.floor(minutesAgo/60)+'h ago':'hace '+Math.floor(minutesAgo/60)+'h'}`}</div>
+        </div>`;
+    }
+
+    return `
+    <div class="trip-card">
+      <div class="tc-top">
+        <div>
+          <div class="tc-id">${(t.id||'').slice(-12)}</div>
+          <span class="badge-done">✅ ${dLang==='en'?'COMPLETED':'COMPLETADO'}</span>
+          ${t.rating ? `<span style="color:var(--primary);font-size:.78rem;margin-left:6px">⭐ ${t.rating}/5</span>` : ''}
+          ${t.pickupLabel ? `<div style="font-size:.7rem;color:var(--primary);margin-top:3px">🕐 ${t.pickupLabel}</div>` : ''}
+        </div>
+        <div style="text-align:right">
+          <div class="tc-price" style="color:var(--success)">${t.price} €</div>
+          <div style="font-size:.72rem;color:var(--muted)">${dLang==='en'?'Your cut':'Tu cobro'}: ${payout} €</div>
+        </div>
+      </div>
+      <div style="font-size:.78rem;color:var(--muted);margin-bottom:8px">${t.origin} → ${t.dest}</div>
+      ${payoutBox}
+    </div>`;
+  }).join('');
+}
+
+async function quickAccept(id) {
+  if (drv.activeTrip) { showToast('Ya tienes un viaje activo'); return; }
+  const trip = await tgStore.getTrip(id);
+  if (!trip) { showToast('El viaje ya no está disponible'); return; }
+  if (trip.status !== 'searching') { showToast('El viaje ya fue aceptado'); return; }
+  if (!canAcceptTrip(trip)) {
+    const tripPax = parseInt(trip.vehiclePax, 10) || 4;
+    showToast(`❌ Necesita ${tripPax} plazas, tu vehículo tiene ${drv.vehiclePax}`);
+    return;
+  }
+  pendingTripId = id;
+  acceptCurrentTrip();
+}
+
+async function previewTrip(id) {
+  const trip = await tgStore.getTrip(id);
+  if (trip) showRouteOnMap(trip);
+}
+
+// ── Toast ──
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.style.display = 'block';
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.style.display = 'none', 3000);
+}
+
+// ── Service Worker ──
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>

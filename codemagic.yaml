@@ -1,0 +1,54 @@
+workflows:
+  ios-conductor:
+    name: TaxiGo Conductor · iOS
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment:
+      groups:
+        - taxigo_ios   # Mismo grupo que cliente (mismo team Apple). En Codemagic: secrets para App Store Connect API
+      vars:
+        BUNDLE_ID: "com.taxigo.driver"
+        XCODE_WORKSPACE: "ios/App/App.xcworkspace"
+        XCODE_SCHEME: "App"
+        APP_STORE_APPLE_ID: 0000000000   # ⚠️ sustituir tras registrar la app en App Store Connect
+      node: 20.x
+      xcode: latest
+      cocoapods: default
+    triggering:
+      events: [push]
+      branch_patterns:
+        - pattern: 'main'
+          include: true
+    scripts:
+      - name: Install npm deps
+        script: npm ci || npm install --no-fund --no-audit
+      - name: Capacitor sync iOS
+        script: |
+          if [ ! -d "ios" ]; then npx cap add ios; fi
+          npx cap sync ios
+      - name: Set bundle id + version code
+        script: |
+          cd ios/App
+          /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $BUNDLE_ID" App/Info.plist || true
+          agvtool new-version -all $(($(date +%s) % 1000000))
+      - name: Code signing setup
+        script: |
+          xcode-project use-profiles
+      - name: Build IPA
+        script: |
+          xcode-project build-ipa \
+            --workspace "$CM_BUILD_DIR/$XCODE_WORKSPACE" \
+            --scheme "$XCODE_SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      email:
+        recipients:
+          - taxigoibz@gmail.com
+        notify:
+          success: true
+          failure: true
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true

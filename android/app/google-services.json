@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1060879157492",
+    "project_id": "taxigo-ibiza",
+    "storage_bucket": "taxigo-ibiza.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1060879157492:android:03ef1716916e1e2fb336a1",
+        "android_client_info": {
+          "package_name": "com.taxigo.driver"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBTBNGg2nqmRvlDmD3sPOkkcSs_junUwWc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

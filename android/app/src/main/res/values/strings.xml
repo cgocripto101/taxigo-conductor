@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">TaxiGo Conductor</string>
+    <string name="title_activity_main">TaxiGo Conductor</string>
+    <string name="package_name">com.taxigo.conductor</string>
+    <string name="custom_url_scheme">com.taxigo.conductor</string>
+</resources>

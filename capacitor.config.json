@@ -1,0 +1,48 @@
+{
+  "appId":   "com.taxigo.driver",
+  "appName": "TaxiGo Conductor",
+  "webDir":  "www",
+  "bundledWebRuntime": false,
+
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1500,
+      "launchAutoHide": true,
+      "backgroundColor": "#0d1117",
+      "androidScaleType": "CENTER_CROP",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "style": "Dark",
+      "backgroundColor": "#f4c430"
+    },
+    "Geolocation": {
+      "permissions": {
+        "android": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"],
+        "ios": "always"
+      }
+    }
+  },
+
+  "android": {
+    "allowMixedContent": true,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": true,
+    "minWebViewVersion": 60
+  },
+
+  "server": {
+    "androidScheme": "https",
+    "allowNavigation": [
+      "*.openstreetmap.org",
+      "nominatim.openstreetmap.org",
+      "photon.komoot.io",
+      "unpkg.com",
+      "*.googleapis.com",
+      "*.gstatic.com",
+      "*.firebaseio.com",
+      "*.firebaseapp.com",
+      "*.cloudfunctions.net"
+    ]
+  }
+}

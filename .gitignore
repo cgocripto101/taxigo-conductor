@@ -1,0 +1,42 @@
+# Node / npm
+node_modules/
+npm-debug.log*
+.npm/
+
+# Build outputs
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+android/captures/
+android/.idea/
+ios/App/build/
+ios/App/Pods/
+ios/App/DerivedData/
+ios/.xcode.env.local
+
+# Capacitor
+.capacitor/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# Secrets
+*.keystore
+*.jks
+*.p8
+*.p12
+*.mobileprovision
+GoogleService-Info.plist.local
+.env
+.env.*
+!.env.example
+
+# NOTA: google-services.json SÍ se incluye (repo privado, lo necesita Codemagic)
