@@ -49,6 +49,10 @@ workflows:
         notify:
           success: true
           failure: true
-      app_store_connect:
-        auth: integration
-        submit_to_testflight: true
+      # ⚠️ Reactivar cuando Apple Developer apruebe y se cree la integración 'taxigo_appstore' en Codemagic.
+      # 1) Codemagic → Teams settings → Integrations → App Store Connect → Add integration (nombre 'taxigo_appstore')
+      # 2) Añadir 'integrations: { app_store_connect: taxigo_appstore }' al nivel del workflow
+      # 3) Descomentar bloque app_store_connect aquí abajo:
+      # app_store_connect:
+      #   auth: integration
+      #   submit_to_testflight: true
