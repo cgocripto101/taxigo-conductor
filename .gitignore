@@ -40,3 +40,4 @@ GoogleService-Info.plist.local
 !.env.example
 
 # NOTA: google-services.json SÍ se incluye (repo privado, lo necesita Codemagic)
+android/key.properties
