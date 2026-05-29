@@ -1914,12 +1914,34 @@ async function completeTrip() {
 // Cancelar el viaje aceptado: vuelve al pool (status='searching') para otros conductores
 async function cancelActiveTrip() {
   if (!drv.activeTrip) return;
-  const reason = window.prompt('¿Motivo de la cancelación? (opcional)', '');
+
+  // ── Regla: cancelar solo permitido si quedan MÁS de 60 min para la recogida ──
+  const pickupMs = parseInt(drv.activeTrip.pickupAtMs, 10) || Date.now();
+  const minsLeft = Math.floor((pickupMs - Date.now()) / 60000);
+  if (minsLeft < 60) {
+    const msg = dLang==='en'
+      ? `⛔ You can only cancel reserved trips with MORE than 1 hour notice.\n\nThis pickup is in ${minsLeft} min. If you can't take it, contact support.`
+      : `⛔ Solo puedes cancelar viajes reservados con MÁS de 1 hora de antelación.\n\nLa recogida es en ${minsLeft} min. Si no puedes hacerlo, contacta con soporte.`;
+    alert(msg);
+    return;
+  }
+
+  const reason = window.prompt(
+    dLang==='en' ? 'Reason for cancelling? (optional)' : '¿Motivo de la cancelación? (opcional)',
+    ''
+  );
   if (reason === null) return;  // cancelado el prompt
-  if (!confirm('⚠️ Vas a cancelar este viaje y volverá a la lista para otros conductores.\n\nPiérdes este viaje. ¿Confirmar?')) return;
+  const confirmMsg = dLang==='en'
+    ? `⚠️ This trip (pickup in ${minsLeft} min) will be released back to the pool so another driver can take it.\n\nYou'll lose this trip and get a push when it's reassigned. Confirm?`
+    : `⚠️ Este viaje (recogida en ${minsLeft} min) volverá a la lista para que otro conductor lo coja.\n\nPierdes este viaje y recibirás un push cuando se reasigne. ¿Confirmar?`;
+  if (!confirm(confirmMsg)) return;
 
   const tripId = drv.activeTrip.id;
   const cancelEntry = { by: drv.name, at: Date.now(), reason: (reason || '').slice(0,200) };
+
+  // Pre-marcar el ID para que el push del propio re-anuncio NO le salte un popup
+  // al conductor que acaba de cancelar (la CF re-notificará a TODOS los compatibles).
+  try { lastKnownIds.add(tripId); } catch(e) {}
 
   try {
     // Marcamos el viaje como disponible otra vez (sin driver)
@@ -1935,7 +1957,8 @@ async function cancelActiveTrip() {
       stage:      null,
       cancellationHistory: history,
       cancellationCount: (fresh?.cancellationCount || 0) + 1,
-      lastCancelledAt: Date.now()
+      lastCancelledAt: Date.now(),
+      lastCancelledBy: drv.name  // la CF excluye este conductor del re-push (10 min)
     });
 
     showToast('🚫 Viaje cancelado y devuelto a la lista');
