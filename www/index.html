@@ -1012,7 +1012,7 @@ function showEpError(msg) {
   el.textContent = msg;
   el.style.display = 'block';
 }
-function saveEditProfile() {
+async function saveEditProfile() {
   const car         = document.getElementById('ep-car').value.trim();
   const vehicleType = document.getElementById('ep-vehicle').value;
   const base        = document.getElementById('ep-base').value.trim();
