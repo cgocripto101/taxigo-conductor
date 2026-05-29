@@ -77,17 +77,23 @@
     /* ── Header ── */
     header {
       background: var(--card); border-bottom: 1px solid var(--border);
-      padding: 12px 16px; display: flex; align-items: center; justify-content: space-between;
-      flex-shrink: 0; z-index: 100;
+      padding: 8px 10px; display: flex; align-items: center; justify-content: space-between;
+      flex-shrink: 0; z-index: 100; gap: 6px;
     }
-    .logo { font-size: 1.2rem; font-weight: 800; color: var(--primary); }
-    .badge { background: #1a3a1a; color: var(--success); font-size: 0.65rem; padding: 3px 8px; border-radius: 10px; font-weight: 700; border: 1px solid var(--success); }
-    .toggle-row { display: flex; align-items: center; gap: 8px; cursor: pointer; }
-    .toggle-lbl { font-size: 0.8rem; color: var(--muted); }
-    .toggle-sw { width: 44px; height: 26px; background: var(--border); border-radius: 13px; position: relative; transition: background .2s; }
+    .logo { font-size: 0.95rem; font-weight: 800; color: var(--primary); white-space: nowrap; }
+    .badge { background: #1a3a1a; color: var(--success); font-size: 0.58rem; padding: 2px 6px; border-radius: 8px; font-weight: 700; border: 1px solid var(--success); }
+    .toggle-row { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+    .toggle-lbl { font-size: 0.72rem; color: var(--muted); }
+    .toggle-sw { width: 38px; height: 22px; background: var(--border); border-radius: 11px; position: relative; transition: background .2s; flex-shrink: 0; }
     .toggle-sw.on { background: var(--success); }
-    .toggle-sw::after { content:''; position:absolute; width:20px;height:20px;border-radius:50%;background:white;top:3px;left:3px;transition:left .2s; }
-    .toggle-sw.on::after { left:21px; }
+    .toggle-sw::after { content:''; position:absolute; width:16px;height:16px;border-radius:50%;background:white;top:3px;left:3px;transition:left .2s; }
+    .toggle-sw.on::after { left:19px; }
+    /* Compactar más en móviles muy estrechos */
+    @media (max-width: 420px) {
+      header { padding: 8px 8px; }
+      .logo-text-only { display: none; }
+      .toggle-lbl { display: none; }
+    }
 
     /* ── Stats strip ── */
     #stats-bar {
@@ -317,21 +323,21 @@
 <!-- ── App ── -->
 <div id="app-shell" style="display:none">
   <header>
-    <div style="display:flex;align-items:center;gap:10px">
-      <span class="logo">🚖 TaxiGo</span>
+    <div style="display:flex;align-items:center;gap:6px;min-width:0">
+      <span class="logo">🚖<span class="logo-text-only"> TaxiGo</span></span>
       <span class="badge">CONDUCTOR</span>
     </div>
-    <div style="display:flex;align-items:center;gap:10px">
+    <div style="display:flex;align-items:center;gap:6px">
       <div class="toggle-row" onclick="toggleAvailability()">
         <span class="toggle-lbl" id="avail-lbl">Inactivo</span>
         <div class="toggle-sw" id="avail-sw"></div>
       </div>
       <button onclick="openPayoutsInfo(false)" title="Cómo y cuándo cobro"
-        style="padding:6px 10px;border-radius:20px;border:2px solid var(--border);background:transparent;color:var(--muted);font-size:0.95rem;cursor:pointer">ℹ️</button>
+        style="padding:4px 8px;border-radius:16px;border:1.5px solid var(--border);background:transparent;color:var(--muted);font-size:0.82rem;cursor:pointer">ℹ️</button>
       <button onclick="openEditProfile()" title="Editar mi perfil"
-        style="padding:6px 10px;border-radius:20px;border:2px solid var(--border);background:transparent;color:var(--muted);font-size:0.95rem;cursor:pointer">✏️</button>
+        style="padding:4px 8px;border-radius:16px;border:1.5px solid var(--border);background:transparent;color:var(--muted);font-size:0.82rem;cursor:pointer">✏️</button>
       <button onclick="toggleLangDrv()" id="lang-btn-drv"
-        style="padding:6px 12px;border-radius:20px;border:2px solid var(--primary);background:transparent;color:var(--primary);font-size:0.78rem;font-weight:700;cursor:pointer;white-space:nowrap">🇬🇧 EN</button>
+        style="padding:4px 10px;border-radius:16px;border:1.5px solid var(--primary);background:transparent;color:var(--primary);font-size:0.72rem;font-weight:700;cursor:pointer;white-space:nowrap">🇬🇧 EN</button>
     </div>
   </header>
 
@@ -403,6 +409,14 @@
         <div class="action-row">
           <button class="btn btn-success btn-sm" onclick="advanceStage()" id="btn-advance">✅ Siguiente etapa</button>
           <button class="btn btn-primary btn-sm" id="btn-complete" onclick="completeTrip()" style="display:none">🏁 Completar viaje</button>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <button onclick="navigateActivePickup()" class="btn btn-sm" style="flex:1;background:#1a3d6b;color:#fff;border:none;font-size:.82rem">
+            🧭 Navegar a recogida
+          </button>
+          <button onclick="navigateActiveDestination()" class="btn btn-sm" style="flex:1;background:#1a3d6b;color:#fff;border:none;font-size:.82rem">
+            🏁 Navegar a destino
+          </button>
         </div>
         <button id="drv-chat-btn" onclick="drvOpenChat()" class="btn btn-sm"
           style="position:relative;background:#1f6feb;color:#fff;border:none;margin-top:8px;font-size:.86rem;width:100%">
@@ -663,9 +677,9 @@
 
 // Tipos de vehículo soportados (deben coincidir con los del cliente index.html)
 const VEHICLE_TYPES_DRV = {
-  comfort: { name: 'Comfort',    icon: '🚗', pax: 4 },
-  van:     { name: 'Coach Van',  icon: '🚐', pax: 6 },
-  vanxl:   { name: 'Van XL',     icon: '🚌', pax: 8 }
+  comfort: { name: 'Comfort',    icon: '🚘', pax: 4 },   // sedán premium
+  van:     { name: 'Coach Van',  icon: '🚐', pax: 6 },   // van ejecutiva
+  vanxl:   { name: 'Van XL',     icon: '🚍', pax: 8 }    // coach de lujo
 };
 
 let drv = { name:'', payMethod:'', payAddress:'', carModel:'', vehicleType:'comfort', vehiclePax:4, available:false, activeTrip:null, stage:0, earned:0, trips:0 };
@@ -1921,17 +1935,20 @@ function handleCompleted(trip) {
 // Crítico para conductores de Van/VanXL: explica por qué el precio puede ser bajo.
 function renderClientVehicleBanner(vType, vIcon, vName, vPax) {
   const t = String(vType || 'comfort').toLowerCase();
-  let bg, border, fg, mult, note;
+  let bg, border, fg, mult, note, gradient, accent;
   if (t === 'vanxl') {
-    bg = '#2a1830'; border = '#a371f7'; fg = '#d2a8ff';
+    bg = '#1a0d24'; border = '#a371f7'; fg = '#e0c7ff'; accent = '#d2a8ff';
+    gradient = 'linear-gradient(135deg, #2a1840 0%, #1a0d24 100%)';
     mult = '×2.0';
     note = dLang==='en' ? 'Premium Van XL rate' : 'Tarifa premium Van XL';
   } else if (t === 'van') {
-    bg = '#2a1f10'; border = '#f0883e'; fg = '#ffb86b';
+    bg = '#1f1408'; border = '#f0883e'; fg = '#ffd9b3'; accent = '#ffb86b';
+    gradient = 'linear-gradient(135deg, #3a2410 0%, #1f1408 100%)';
     mult = '×1.5';
-    note = dLang==='en' ? 'Van rate (1.5×)' : 'Tarifa Coach Van (×1,5)';
+    note = dLang==='en' ? 'Coach Van rate (×1.5)' : 'Tarifa Coach Van (×1,5)';
   } else {
-    bg = '#101a26'; border = '#3a8aff'; fg = '#7dc4ff';
+    bg = '#0a1320'; border = '#3a8aff'; fg = '#c7e0ff'; accent = '#7dc4ff';
+    gradient = 'linear-gradient(135deg, #142436 0%, #0a1320 100%)';
     mult = '×1.0';
     note = dLang==='en'
       ? 'Standard rate — if your car is bigger, the price stays at Comfort tier'
@@ -1939,18 +1956,19 @@ function renderClientVehicleBanner(vType, vIcon, vName, vPax) {
   }
   const label = dLang==='en' ? 'CLIENT CHOSE' : 'CLIENTE ELIGIÓ';
   return `
-    <div style="background:${bg};border:2px solid ${border};border-radius:10px;padding:10px 12px;margin-bottom:10px">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-        <div style="display:flex;align-items:center;gap:10px;min-width:0">
-          <span style="font-size:1.5rem">${vIcon}</span>
+    <div style="background:${gradient};border:2px solid ${border};border-radius:14px;padding:14px 16px;margin-bottom:10px;box-shadow:0 2px 8px rgba(0,0,0,.4)">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+        <div style="display:flex;align-items:center;gap:14px;min-width:0">
+          <span style="font-size:3rem;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))">${vIcon}</span>
           <div style="min-width:0">
-            <div style="font-size:0.62rem;color:${fg};opacity:.8;letter-spacing:.5px;font-weight:700">${label}</div>
-            <div style="font-weight:900;font-size:0.98rem;color:${fg}">${vName} · ${vPax} pax</div>
+            <div style="font-size:0.6rem;color:${accent};opacity:.85;letter-spacing:1.5px;font-weight:800">${label}</div>
+            <div style="font-weight:900;font-size:1.15rem;color:${fg};line-height:1.1;margin-top:2px">${vName}</div>
+            <div style="font-size:0.72rem;color:${accent};opacity:.85;margin-top:2px">👥 ${vPax} pax</div>
           </div>
         </div>
-        <div style="background:${border};color:#000;font-weight:900;font-size:0.78rem;padding:4px 8px;border-radius:6px;white-space:nowrap">${mult}</div>
+        <div style="background:${border};color:#000;font-weight:900;font-size:0.9rem;padding:6px 12px;border-radius:8px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.3)">${mult}</div>
       </div>
-      <div style="font-size:0.72rem;color:${fg};opacity:.85;margin-top:6px;line-height:1.35">${note}</div>
+      <div style="font-size:0.72rem;color:${fg};opacity:.85;margin-top:10px;line-height:1.4;padding-top:10px;border-top:1px solid ${border}33">${note}</div>
     </div>`;
 }
 
@@ -2024,9 +2042,10 @@ function renderAvailable(trips) {
         <span style="font-size:0.78rem;color:var(--muted)">${dLang==='en'?'Your cut (85%):':'Tu cobro (85%):'}</span>
         <span style="font-size:1.1rem;font-weight:900;color:#3fb950">${payout} €</span>
       </div>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-success btn-sm" onclick="quickAccept('${t.id}')">${dLang==='en'?'✅ Accept ride':'✅ Aceptar viaje'}</button>
-        <button class="btn btn-sm" style="background:var(--card2);color:var(--muted);min-height:44px;padding:10px 14px" onclick="previewTrip('${t.id}')">${dLang==='en'?'🗺️ View route':'🗺️ Ver ruta'}</button>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-success btn-sm" style="flex:1 1 100%" onclick="quickAccept('${t.id}')">${dLang==='en'?'✅ Accept ride':'✅ Aceptar viaje'}</button>
+        <button class="btn btn-sm" style="flex:1;background:#1a3d6b;color:#fff;border:none;min-height:42px;padding:8px 10px;font-size:0.82rem" onclick="navigateToPickup('${t.id}')">${dLang==='en'?'🧭 Navigate (Maps)':'🧭 Navegar (Maps)'}</button>
+        <button class="btn btn-sm" style="flex:1;background:var(--card2);color:var(--muted);min-height:42px;padding:8px 10px;font-size:0.82rem" onclick="previewTrip('${t.id}')">${dLang==='en'?'🗺️ Preview':'🗺️ Vista mapa'}</button>
       </div>
     </div>
   `}).join('');
@@ -2115,7 +2134,70 @@ async function quickAccept(id) {
 
 async function previewTrip(id) {
   const trip = await tgStore.getTrip(id);
-  if (trip) showRouteOnMap(trip);
+  if (!trip) { showToast('Viaje no disponible'); return; }
+  showRouteOnMap(trip);
+}
+
+// Abrir Google Maps / Maps nativa con navegación al punto de RECOGIDA del viaje.
+// Funciona en Capacitor (abre app nativa) y en navegador (abre web).
+async function navigateToPickup(id) {
+  const trip = await tgStore.getTrip(id);
+  if (!trip) { showToast('Viaje no disponible'); return; }
+  const lat = (trip.originLatLng && (trip.originLatLng.lat || trip.originLatLng[0])) || null;
+  const lng = (trip.originLatLng && (trip.originLatLng.lng || trip.originLatLng[1])) || null;
+  let url;
+  if (lat && lng) {
+    // Coordenadas exactas (más preciso que dirección)
+    url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+  } else if (trip.origin) {
+    // Fallback: dirección de texto
+    url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(trip.origin)}&travelmode=driving`;
+  } else {
+    showToast('Sin coordenadas para navegar');
+    return;
+  }
+  await openExternalUrl(url);
+}
+
+// Misma función para el viaje activo (botón "Navegar al cliente")
+async function navigateActivePickup() {
+  if (!drv.activeTrip) { showToast('No tienes viaje activo'); return; }
+  await navigateToPickup(drv.activeTrip.id);
+}
+
+// Para el destino, una vez ha recogido al cliente
+async function navigateActiveDestination() {
+  if (!drv.activeTrip) { showToast('No tienes viaje activo'); return; }
+  const trip = drv.activeTrip;
+  const lat = (trip.destLatLng && (trip.destLatLng.lat || trip.destLatLng[0])) || null;
+  const lng = (trip.destLatLng && (trip.destLatLng.lng || trip.destLatLng[1])) || null;
+  let url;
+  if (lat && lng) {
+    url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+  } else if (trip.dest) {
+    url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(trip.dest)}&travelmode=driving`;
+  } else {
+    showToast('Sin coordenadas para navegar');
+    return;
+  }
+  await openExternalUrl(url);
+}
+
+// Abrir URL fuera del WebView (en Capacitor → Browser plugin, en web → tab nueva)
+async function openExternalUrl(url) {
+  try {
+    const cap = window.Capacitor;
+    if (cap && cap.Plugins && cap.Plugins.Browser && typeof cap.Plugins.Browser.open === 'function') {
+      await cap.Plugins.Browser.open({ url, presentationStyle: 'fullscreen' });
+      return;
+    }
+  } catch (e) { console.warn('[nav] Browser.open falló:', e); }
+  try {
+    const w = window.open(url, '_system');
+    if (w) return;
+  } catch (e) {}
+  try { window.open(url, '_blank', 'noopener,noreferrer'); }
+  catch (e) { window.location.href = url; }
 }
 
 // ── Toast ──
