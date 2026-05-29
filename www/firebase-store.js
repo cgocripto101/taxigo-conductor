@@ -144,6 +144,14 @@
     lsSet(trip.id, payload);
     if (isReady()) {
       await db.collection(COLLECTION).doc(trip.id).set(payload);
+      // Asegurar que el token FCM del cliente queda accesible por teléfono
+      // (fallback que usa la Cloud Function si el doc no tiene clientFCMToken)
+      try {
+        const token = (typeof localStorage !== 'undefined') ? localStorage.getItem('tg_client_fcm_token') : null;
+        if (token && trip.clientPhone) {
+          await saveClientFcmToken({ phone: trip.clientPhone, token });
+        }
+      } catch (e) { /* no bloquear createTrip si falla el FCM-save */ }
     } else {
       fireLocalWatchers();
     }
