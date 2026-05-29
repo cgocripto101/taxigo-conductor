@@ -1438,6 +1438,40 @@ function canAcceptTrip(trip) {
   return (drv.vehiclePax || 4) >= tripPax;
 }
 
+// ── Compatibilidad temporal entre viaje activo y otro nuevo ──
+// Devuelve true si el conductor puede aceptar OTRO viaje teniendo ya `drv.activeTrip`:
+//   - Sin viaje activo → libre
+//   - Con viaje activo INMEDIATO (recogida en <45 min) → bloquear
+//   - Con viaje activo RESERVADO para más tarde → permitir, dejando colchón
+const MIN_GAP_MIN = 30; // colchón mínimo entre fin del nuevo y pickup del reservado
+function canTakeAnotherTrip(newTrip) {
+  const active = drv.activeTrip;
+  if (!active) return { ok: true };
+  const now = Date.now();
+  const activePickupMs = parseInt(active.pickupAtMs, 10) || 0;
+  // Si el viaje activo es para ahora/inminente → no se pueden compaginar
+  if (!activePickupMs || (activePickupMs - now) < 45 * 60 * 1000) {
+    return { ok: false, reason: 'busy_now',
+      msg: dLang==='en'
+        ? 'You already have an active trip in progress.'
+        : 'Ya estás haciendo un viaje activo.' };
+  }
+  // Calcular cuándo terminará el nuevo viaje (pickup + duración estimada + 10 min margen)
+  const newPickupMs = parseInt(newTrip.pickupAtMs, 10) || now;
+  const newDurMin   = parseInt(newTrip.durationMin, 10) || 30;
+  const newEndMs    = newPickupMs + (newDurMin + 10) * 60 * 1000; // +10 min de margen
+  const gapMs       = activePickupMs - newEndMs;
+  if (gapMs < MIN_GAP_MIN * 60 * 1000) {
+    const mins = Math.floor((activePickupMs - now) / 60000);
+    return { ok: false, reason: 'overlap',
+      msg: dLang==='en'
+        ? `Not enough time. Your reserved trip starts in ${mins} min.`
+        : `No te da tiempo. Tu viaje reservado empieza en ${mins} min.` };
+  }
+  return { ok: true, withReservation: true,
+    reservedAt: new Date(activePickupMs).toLocaleTimeString(dLang==='en'?'en-US':'es-ES', { hour:'2-digit', minute:'2-digit' }) };
+}
+
 function startPolling() {
   // Viajes disponibles (status === 'searching')
   if (unsubSearching) unsubSearching();
@@ -1445,9 +1479,16 @@ function startPolling() {
     // Filtrar por status + por compatibilidad de plazas del conductor
     const available = list.filter(t => t && t.status === 'searching' && canAcceptTrip(t));
 
-    if (drv.available && !drv.activeTrip) {
+    if (drv.available) {
       const newest = available.find(t => !lastKnownIds.has(t.id));
-      if (newest) { lastKnownIds.add(newest.id); showIncomingPopup(newest); }
+      if (newest) {
+        lastKnownIds.add(newest.id);
+        // Mostrar popup si:
+        //  - No tiene viaje activo, O
+        //  - Tiene viaje activo pero es para más tarde y el nuevo cabe antes
+        const compat = canTakeAnotherTrip(newest);
+        if (compat.ok) showIncomingPopup(newest);
+      }
     }
     available.forEach(t => lastKnownIds.add(t.id));
     renderAvailable(available);
@@ -1666,6 +1707,13 @@ async function acceptCurrentTrip() {
     showToast(`❌ Necesita ${tripPax} plazas, tu vehículo tiene ${drv.vehiclePax}`);
     return;
   }
+  // Compatibilidad temporal: si ya hay un viaje activo, comprobar si cabe
+  const compat = canTakeAnotherTrip(trip);
+  if (!compat.ok) { showToast('⚠️ ' + compat.msg); return; }
+  if (compat.withReservation) {
+    if (!confirm((dLang==='en'?'You already have a trip reserved for ':'Ya tienes un viaje reservado para las ') + compat.reservedAt + '. ' +
+                 (dLang==='en'?'Take this one now anyway?':'¿Coger este viaje ahora de todas formas?'))) return;
+  }
 
   const patch = {
     status: 'accepted',
@@ -1710,15 +1758,14 @@ function showActiveBanner(trip) {
   const payout = trip.driverPayout || (+(parseFloat(trip.price) * 0.85).toFixed(2));
   document.getElementById('ab-payout').textContent = payout + ' €  (85%)';
   // Etiqueta del tipo de coche del cliente, junto a la ruta
-  const vIcon = trip.vehicleIcon || '🚗';
+  const vIcon = trip.vehicleIcon || '🚘';
   const vName = trip.vehicleName || 'Comfort';
   const vType = String(trip.vehicleType || 'comfort').toLowerCase();
   const tierColor = vType === 'vanxl' ? '#d2a8ff' : vType === 'van' ? '#ffb86b' : '#7dc4ff';
-  const tierMult  = vType === 'vanxl' ? '×2.0'    : vType === 'van' ? '×1.5'    : '×1.0';
   document.getElementById('ab-route').innerHTML =
     `<div style="display:inline-block;background:#0a1020;border:1px solid ${tierColor};color:${tierColor};
        padding:2px 8px;border-radius:6px;font-size:.72rem;font-weight:800;margin-bottom:6px">
-       ${vIcon} ${vName} ${tierMult}
+       ${vIcon} ${vName}
      </div><br>` +
     '<strong>'+trip.origin+'</strong> → <strong>'+trip.dest+'</strong>';
   updateStageChips(1);
@@ -1932,41 +1979,35 @@ function handleCompleted(trip) {
 }
 
 // ── Banner: tipo de coche que el CLIENTE eligió ──
-// Crítico para conductores de Van/VanXL: explica por qué el precio puede ser bajo.
+// Crítico para conductores de Van/VanXL: explica qué tipo de servicio se ha pedido.
 function renderClientVehicleBanner(vType, vIcon, vName, vPax) {
   const t = String(vType || 'comfort').toLowerCase();
-  let bg, border, fg, mult, note, gradient, accent;
+  let border, fg, note, gradient, accent;
   if (t === 'vanxl') {
-    bg = '#1a0d24'; border = '#a371f7'; fg = '#e0c7ff'; accent = '#d2a8ff';
+    border = '#a371f7'; fg = '#e0c7ff'; accent = '#d2a8ff';
     gradient = 'linear-gradient(135deg, #2a1840 0%, #1a0d24 100%)';
-    mult = '×2.0';
-    note = dLang==='en' ? 'Premium Van XL rate' : 'Tarifa premium Van XL';
+    note = dLang==='en' ? 'Premium Van XL service' : 'Servicio premium Van XL';
   } else if (t === 'van') {
-    bg = '#1f1408'; border = '#f0883e'; fg = '#ffd9b3'; accent = '#ffb86b';
+    border = '#f0883e'; fg = '#ffd9b3'; accent = '#ffb86b';
     gradient = 'linear-gradient(135deg, #3a2410 0%, #1f1408 100%)';
-    mult = '×1.5';
-    note = dLang==='en' ? 'Coach Van rate (×1.5)' : 'Tarifa Coach Van (×1,5)';
+    note = dLang==='en' ? 'Coach Van service' : 'Servicio Coach Van';
   } else {
-    bg = '#0a1320'; border = '#3a8aff'; fg = '#c7e0ff'; accent = '#7dc4ff';
+    border = '#3a8aff'; fg = '#c7e0ff'; accent = '#7dc4ff';
     gradient = 'linear-gradient(135deg, #142436 0%, #0a1320 100%)';
-    mult = '×1.0';
     note = dLang==='en'
-      ? 'Standard rate — if your car is bigger, the price stays at Comfort tier'
-      : 'Tarifa base — si tu coche es más grande, el precio sigue siendo el de Comfort';
+      ? 'Comfort service — if your car is bigger, the price is the Comfort price'
+      : 'Servicio Comfort — si tu coche es más grande, el precio sigue siendo el de Comfort';
   }
   const label = dLang==='en' ? 'CLIENT CHOSE' : 'CLIENTE ELIGIÓ';
   return `
     <div style="background:${gradient};border:2px solid ${border};border-radius:14px;padding:14px 16px;margin-bottom:10px;box-shadow:0 2px 8px rgba(0,0,0,.4)">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
-        <div style="display:flex;align-items:center;gap:14px;min-width:0">
-          <span style="font-size:3rem;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))">${vIcon}</span>
-          <div style="min-width:0">
-            <div style="font-size:0.6rem;color:${accent};opacity:.85;letter-spacing:1.5px;font-weight:800">${label}</div>
-            <div style="font-weight:900;font-size:1.15rem;color:${fg};line-height:1.1;margin-top:2px">${vName}</div>
-            <div style="font-size:0.72rem;color:${accent};opacity:.85;margin-top:2px">👥 ${vPax} pax</div>
-          </div>
+      <div style="display:flex;align-items:center;gap:14px;min-width:0">
+        <span style="font-size:3rem;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))">${vIcon}</span>
+        <div style="min-width:0;flex:1">
+          <div style="font-size:0.6rem;color:${accent};opacity:.85;letter-spacing:1.5px;font-weight:800">${label}</div>
+          <div style="font-weight:900;font-size:1.15rem;color:${fg};line-height:1.1;margin-top:2px">${vName}</div>
+          <div style="font-size:0.72rem;color:${accent};opacity:.85;margin-top:2px">👥 ${vPax} pax</div>
         </div>
-        <div style="background:${border};color:#000;font-weight:900;font-size:0.9rem;padding:6px 12px;border-radius:8px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.3)">${mult}</div>
       </div>
       <div style="font-size:0.72rem;color:${fg};opacity:.85;margin-top:10px;line-height:1.4;padding-top:10px;border-top:1px solid ${border}33">${note}</div>
     </div>`;
@@ -2119,7 +2160,6 @@ function renderDone(trips) {
 }
 
 async function quickAccept(id) {
-  if (drv.activeTrip) { showToast('Ya tienes un viaje activo'); return; }
   const trip = await tgStore.getTrip(id);
   if (!trip) { showToast('El viaje ya no está disponible'); return; }
   if (trip.status !== 'searching') { showToast('El viaje ya fue aceptado'); return; }
@@ -2127,6 +2167,13 @@ async function quickAccept(id) {
     const tripPax = parseInt(trip.vehiclePax, 10) || 4;
     showToast(`❌ Necesita ${tripPax} plazas, tu vehículo tiene ${drv.vehiclePax}`);
     return;
+  }
+  // Compatibilidad temporal con viaje activo
+  const compat = canTakeAnotherTrip(trip);
+  if (!compat.ok) { showToast('⚠️ ' + compat.msg); return; }
+  if (compat.withReservation) {
+    if (!confirm((dLang==='en'?'You already have a trip reserved for ':'Ya tienes un viaje reservado para las ') + compat.reservedAt + '. ' +
+                 (dLang==='en'?'Take this one now anyway?':'¿Coger este viaje ahora de todas formas?'))) return;
   }
   pendingTripId = id;
   acceptCurrentTrip();
