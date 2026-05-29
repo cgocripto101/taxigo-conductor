@@ -404,6 +404,11 @@
           <button class="btn btn-success btn-sm" onclick="advanceStage()" id="btn-advance">✅ Siguiente etapa</button>
           <button class="btn btn-primary btn-sm" id="btn-complete" onclick="completeTrip()" style="display:none">🏁 Completar viaje</button>
         </div>
+        <button id="drv-chat-btn" onclick="drvOpenChat()" class="btn btn-sm"
+          style="position:relative;background:#1f6feb;color:#fff;border:none;margin-top:8px;font-size:.86rem;width:100%">
+          💬 Chat con cliente
+          <span id="drv-chat-badge" style="display:none;position:absolute;top:-6px;right:8px;background:var(--danger);color:#fff;font-size:0.65rem;font-weight:900;padding:2px 6px;border-radius:10px;min-width:18px">0</span>
+        </button>
         <button class="btn btn-sm" onclick="cancelActiveTrip()"
           style="background:transparent;border:1px solid var(--danger);color:var(--danger);margin-top:8px;font-size:.78rem">
           ❌ Cancelar viaje (vuelve a la lista)
@@ -615,6 +620,29 @@
     <div id="del-drv-error" style="display:none;margin-bottom:10px;padding:8px;border-radius:6px;background:#2a0a0a;color:var(--danger);font-size:.82rem;text-align:center"></div>
     <button class="btn btn-sm" style="width:100%;background:var(--danger);color:#fff;border:none;padding:12px;border-radius:8px;font-weight:700;cursor:pointer;margin-bottom:8px" onclick="doDeleteDriverAccount()">🗑️ Eliminar definitivamente</button>
     <button class="btn btn-sm" style="width:100%;background:transparent;color:var(--muted);border:1px solid var(--border)" onclick="closeDeleteDriverAccount()">Cancelar</button>
+  </div>
+</div>
+
+<!-- ─── MODAL CHAT con cliente ─── -->
+<div id="drv-chat-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:2080;padding:0">
+  <div style="background:var(--card);border:1px solid var(--border);max-width:480px;margin:0 auto;height:100%;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border);background:#0d1117">
+      <button onclick="drvCloseChat()" style="background:transparent;border:none;color:var(--primary);font-size:1.2rem;cursor:pointer;padding:4px 8px">←</button>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:0.7rem;color:var(--muted)">Chat con</div>
+        <div id="drv-chat-client-name" style="font-weight:700;font-size:0.95rem;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">—</div>
+      </div>
+    </div>
+    <div id="drv-chat-messages" style="flex:1;overflow-y:auto;padding:14px;background:#0a0f1a;display:flex;flex-direction:column;gap:8px">
+      <div id="drv-chat-empty" style="text-align:center;color:var(--muted);font-size:0.82rem;padding:30px 14px">Aún no hay mensajes. Escribe algo al cliente para coordinar la recogida.</div>
+    </div>
+    <div style="padding:10px 12px;border-top:1px solid var(--border);background:#0d1117;display:flex;gap:8px;align-items:center">
+      <input type="text" id="drv-chat-input" maxlength="500" placeholder="Escribe un mensaje..."
+        style="flex:1;padding:11px 12px;background:#0a0f1a;border:1px solid var(--border);border-radius:22px;color:var(--text);font-size:0.92rem"
+        onkeydown="if(event.key==='Enter')drvSendChat()"/>
+      <button onclick="drvSendChat()"
+        style="background:var(--primary);color:#000;border:none;width:44px;height:44px;border-radius:50%;font-weight:900;cursor:pointer;font-size:1.2rem;display:flex;align-items:center;justify-content:center">➤</button>
+    </div>
   </div>
 </div>
 
@@ -1478,7 +1506,12 @@ function rewatchMine() {
     // Si el cliente o el conductor completó el viaje activo
     if (drv.activeTrip) {
       const upd = mine.find(t => t.id === drv.activeTrip.id);
-      if (upd && upd.status === 'completed') handleCompleted(upd);
+      if (upd) {
+        // Mantener la copia local actualizada (clientName, unread counters…)
+        drv.activeTrip = upd;
+        try { drvCheckChatUnread(upd); } catch(e){}
+        if (upd.status === 'completed') handleCompleted(upd);
+      }
     }
 
     renderDone(completed);
@@ -1528,11 +1561,19 @@ function showIncomingPopup(trip) {
     : '';
   // Hora de recogida destacada en grande arriba
   const pickupBox = `<div style="background:#1a1200;border:2px solid var(--primary);border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:0.95rem;color:var(--primary);font-weight:700">${pickupTimeHtml(trip)}</div>`;
+  const ex = trip.extras || {};
+  const extraTags = [];
+  if (ex.pet)     extraTags.push((dLang==='en'?'🐾 Pet':'🐾 Mascota'));
+  if (ex.baby)    extraTags.push((dLang==='en'?'👶 Baby seat':'👶 Silla bebé'));
+  if (ex.luggage) extraTags.push((dLang==='en'?'🧳 Extra luggage':'🧳 Equipaje extra'));
+  const extrasHtml = extraTags.length
+    ? `<div style="background:#1a2433;border:1px solid var(--info);border-radius:8px;padding:8px 10px;margin:8px 0;font-size:0.82rem;color:var(--info);font-weight:700;display:flex;flex-wrap:wrap;gap:6px">${extraTags.map(x=>`<span>${x}</span>`).join('<span style="color:var(--muted)">·</span>')}</div>`
+    : '';
   document.getElementById('pop-route').innerHTML =
     pickupBox +
     `<span style="font-size:0.85rem;color:var(--primary);font-weight:700">${vIcon} ${vName}</span><br><br>` +
     `<span style="color:#3fb950;font-weight:700">📍 RECOGIDA</span><br>${trip.origin}<br><br>` +
-    `<span style="color:#f85149;font-weight:700">🏁 DESTINO</span><br>${trip.dest}` + contactHtml;
+    `<span style="color:#f85149;font-weight:700">🏁 DESTINO</span><br>${trip.dest}` + extrasHtml + contactHtml;
   document.getElementById('incoming-popup').style.display = 'flex';
 
   // Vibrar si disponible
@@ -1622,6 +1663,111 @@ function showActiveBanner(trip) {
   document.getElementById('ab-payout').textContent = payout + ' €  (85%)';
   document.getElementById('ab-route').innerHTML = '<strong>'+trip.origin+'</strong> → <strong>'+trip.dest+'</strong>';
   updateStageChips(1);
+  // Reset chat badge cuando arranca un viaje nuevo
+  drvUpdateChatBadge(trip.unreadByDriverCount || 0);
+}
+
+// ══════════════════════════════════════════════════════════════
+//  CHAT IN-APP (conductor ↔ cliente)
+// ══════════════════════════════════════════════════════════════
+let drvChatUnsub = null;
+let drvChatLastUnread = 0;
+
+function drvOpenChat() {
+  if (!drv.activeTrip || !drv.activeTrip.id) {
+    showToast('No tienes viaje activo');
+    return;
+  }
+  document.getElementById('drv-chat-modal').style.display = 'block';
+  document.getElementById('drv-chat-client-name').textContent = drv.activeTrip.clientName || drv.activeTrip.clientPhone || 'Cliente';
+  drvStartChatListener();
+  try { tgStore.markChatRead(drv.activeTrip.id, 'driver'); } catch(e){}
+  drvUpdateChatBadge(0);
+  setTimeout(() => document.getElementById('drv-chat-input')?.focus(), 200);
+}
+
+function drvCloseChat() {
+  document.getElementById('drv-chat-modal').style.display = 'none';
+  if (drvChatUnsub) { try { drvChatUnsub(); } catch(e){} drvChatUnsub = null; }
+  if (drv.activeTrip) {
+    try { tgStore.markChatRead(drv.activeTrip.id, 'driver'); } catch(e){}
+  }
+}
+
+function drvStartChatListener() {
+  if (drvChatUnsub) { try { drvChatUnsub(); } catch(e){} drvChatUnsub = null; }
+  if (!drv.activeTrip || !drv.activeTrip.id || !tgStore.watchChat) return;
+  drvChatUnsub = tgStore.watchChat(drv.activeTrip.id, (msgs) => drvRenderChat(msgs));
+}
+
+function drvRenderChat(msgs) {
+  const box = document.getElementById('drv-chat-messages');
+  if (!box) return;
+  if (!msgs.length) {
+    box.innerHTML = `<div style="text-align:center;color:var(--muted);font-size:0.82rem;padding:30px 14px">Aún no hay mensajes. Escribe algo al cliente para coordinar la recogida.</div>`;
+    return;
+  }
+  box.innerHTML = msgs.map(m => {
+    const mine = m.from === 'driver';
+    const time = new Date(m.ts || 0).toLocaleTimeString('es-ES', { hour:'2-digit', minute:'2-digit' });
+    const esc = String(m.text || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+    return `
+      <div style="display:flex;justify-content:${mine?'flex-end':'flex-start'};margin-bottom:2px">
+        <div style="max-width:78%;background:${mine?'var(--primary)':'#1a2433'};color:${mine?'#000':'var(--text)'};
+          padding:8px 12px;border-radius:14px;${mine?'border-bottom-right-radius:4px':'border-bottom-left-radius:4px'};
+          font-size:0.9rem;line-height:1.35;word-break:break-word">
+          ${esc}
+          <div style="font-size:0.62rem;opacity:.7;margin-top:2px;text-align:right">${time}</div>
+        </div>
+      </div>`;
+  }).join('');
+  box.scrollTop = box.scrollHeight;
+}
+
+async function drvSendChat() {
+  const inp = document.getElementById('drv-chat-input');
+  const text = (inp?.value || '').trim();
+  if (!text || !drv.activeTrip || !drv.activeTrip.id) return;
+  inp.value = '';
+  inp.focus();
+  try {
+    await tgStore.sendChatMessage(drv.activeTrip.id, {
+      from: 'driver',
+      fromName: drv.name || '',
+      text
+    });
+  } catch (e) {
+    console.warn('[drv-chat] send fail:', e);
+    showToast('No se pudo enviar el mensaje');
+  }
+}
+
+function drvUpdateChatBadge(count) {
+  const b = document.getElementById('drv-chat-badge');
+  if (!b) return;
+  if (count > 0) {
+    b.textContent = count > 9 ? '9+' : String(count);
+    b.style.display = 'inline-block';
+  } else {
+    b.style.display = 'none';
+  }
+}
+
+// Hook llamado desde el watcher del viaje activo: detecta unread del conductor
+function drvCheckChatUnread(trip) {
+  if (!trip) return;
+  const unread = trip.unreadByDriverCount || 0;
+  const open = document.getElementById('drv-chat-modal')?.style.display === 'block';
+  if (open && unread > 0) {
+    try { tgStore.markChatRead(trip.id, 'driver'); } catch(e){}
+    drvUpdateChatBadge(0);
+    drvChatLastUnread = 0;
+    return;
+  }
+  if (unread !== drvChatLastUnread) {
+    drvChatLastUnread = unread;
+    drvUpdateChatBadge(unread);
+  }
 }
 
 const STAGES = ['sc1','sc2','sc3','sc4'];
@@ -1743,6 +1889,14 @@ function renderAvailable(trips) {
     const vIcon = t.vehicleIcon || '🚗';
     const vName = t.vehicleName || 'Comfort';
     const vPax  = t.vehiclePax  || 4;
+    const ex = t.extras || {};
+    const extraTags = [];
+    if (ex.pet)     extraTags.push((dLang==='en'?'🐾 Pet':'🐾 Mascota'));
+    if (ex.baby)    extraTags.push((dLang==='en'?'👶 Baby seat':'👶 Silla bebé'));
+    if (ex.luggage) extraTags.push((dLang==='en'?'🧳 Extra luggage':'🧳 Equipaje extra'));
+    const extrasHtml = extraTags.length
+      ? `<div style="background:#1a2433;border:1px solid var(--info);border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:0.78rem;color:var(--info);font-weight:700;display:flex;flex-wrap:wrap;gap:6px">${extraTags.map(x=>`<span>${x}</span>`).join('<span style="color:var(--muted)">·</span>')}</div>`
+      : '';
     return `
     <div class="trip-card new-trip">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
@@ -1780,6 +1934,7 @@ function renderAvailable(trips) {
         </div>` : ''}
       </div>
       <div style="background:#1a1200;border:1px solid var(--primary);border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:0.82rem;color:var(--primary);font-weight:700">${pickupTimeHtml(t)}</div>
+      ${extrasHtml}
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
         <span style="font-size:0.78rem;color:var(--muted)">${dLang==='en'?'Your cut (85%):':'Tu cobro (85%):'}</span>
         <span style="font-size:1.1rem;font-weight:900;color:#3fb950">${payout} €</span>

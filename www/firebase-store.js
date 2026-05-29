@@ -290,12 +290,60 @@
     catch (e) { console.warn('[tgStore] attachClientTokenToTrip:', e.message); }
   }
 
+  // ── Chat in-app (subcolección trips/{tripId}/messages) ──────
+  async function sendChatMessage(tripId, { from, fromName, text }) {
+    if (!tripId || !text || !text.trim()) return;
+    const msg = {
+      from: from || 'client',       // 'client' | 'driver'
+      fromName: fromName || '',
+      text: String(text).slice(0, 500),
+      ts: Date.now()
+    };
+    if (isReady()) {
+      // Mensaje en la subcolección
+      await db.collection(COLLECTION).doc(tripId).collection('messages').add({
+        ...msg,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      // Marca en el doc del viaje para badges de no leídos del OTRO
+      const flagField = from === 'driver' ? 'unreadByClient' : 'unreadByDriver';
+      const incField  = from === 'driver' ? 'unreadByClientCount' : 'unreadByDriverCount';
+      await db.collection(COLLECTION).doc(tripId).update({
+        lastMessageAt: Date.now(),
+        lastMessageFrom: msg.from,
+        lastMessagePreview: msg.text.slice(0, 60),
+        [flagField]: true,
+        [incField]: firebase.firestore.FieldValue.increment(1)
+      });
+    }
+  }
+
+  function watchChat(tripId, cb) {
+    if (!tripId || !isReady()) return () => {};
+    return db.collection(COLLECTION).doc(tripId).collection('messages')
+      .orderBy('ts', 'asc')
+      .onSnapshot(snap => {
+        const list = [];
+        snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+        cb(list);
+      }, err => console.warn('[tgStore] watchChat error:', err.message));
+  }
+
+  async function markChatRead(tripId, who) {
+    if (!tripId || !isReady()) return;
+    const field = who === 'driver' ? 'unreadByDriver' : 'unreadByClient';
+    const cnt   = who === 'driver' ? 'unreadByDriverCount' : 'unreadByClientCount';
+    try { await db.collection(COLLECTION).doc(tripId).update({ [field]: false, [cnt]: 0 }); }
+    catch (e) { /* el doc puede no existir o no haber mensajes aún */ }
+  }
+
   // ── Export ───────────────────────────────────────────────
   global.tgStore = {
     init, isReady, mode,
     createTrip, updateTrip, getTrip, getAllTrips,
     watchTrip, watchSearching, watchByDriver, watchAll,
-    saveClientFcmToken, attachClientTokenToTrip
+    saveClientFcmToken, attachClientTokenToTrip,
+    sendChatMessage, watchChat, markChatRead
   };
 
   // Auto-init en próxima tick: si ya hay config guardado, conecta solo
