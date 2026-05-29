@@ -1384,6 +1384,8 @@ function rewatchMine() {
       showActiveBanner(drv.activeTrip);
       showRouteOnMap(drv.activeTrip);
       updateStageChips(drv.stage);
+      // Reanudar tracking GPS (por si reabrió la app con viaje activo)
+      startDriverTracking(drv.activeTrip.id);
     }
 
     // Si el cliente o el conductor completó el viaje activo
@@ -1505,6 +1507,8 @@ async function acceptCurrentTrip() {
     }
   };
   await tgStore.updateTrip(pendingTripId, patch);
+  // Iniciar tracking GPS en tiempo real para que el cliente vea al conductor
+  startDriverTracking(pendingTripId);
 
   const updated = { ...trip, ...patch };
   drv.activeTrip = updated; drv.stage = 1;
@@ -1559,6 +1563,7 @@ async function completeTrip() {
   try {
     await tgStore.updateTrip(tripId, { status: 'completed', completedAt: Date.now() });
   } catch (e) { console.warn('[driver] completeTrip:', e); }
+  stopDriverTracking();
   const fresh = await tgStore.getTrip(tripId);
   handleCompleted(fresh || drv.activeTrip);
 }
@@ -1591,6 +1596,7 @@ async function cancelActiveTrip() {
     });
 
     showToast('🚫 Viaje cancelado y devuelto a la lista');
+    stopDriverTracking();
   } catch (e) {
     console.error('[driver] cancelActiveTrip:', e);
     showToast('⚠️ Error al cancelar: ' + (e.message || e));
@@ -1791,6 +1797,66 @@ function showToast(msg) {
 
 // ── Service Worker ──
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+
+// ─── TRACKING GPS DEL CONDUCTOR ──────────────────────────────────
+// Cuando el conductor tiene viaje activo (accepted/in_progress) enviamos
+// su ubicación cada ~12 segundos al doc del viaje en Firestore.
+// El cliente se subscribe y muestra el pin en el mapa con su ETA.
+let _driverGpsWatchId = null;
+let _driverGpsThrottleMs = 0;
+async function startDriverTracking(tripId) {
+  if (!tripId || _driverGpsWatchId) return;
+  if (!window.Capacitor?.isNativePlatform?.()) return;
+  try {
+    const { Geolocation } = window.Capacitor.Plugins;
+    if (!Geolocation) return;
+    const perm = await Geolocation.requestPermissions();
+    if (perm.location !== 'granted' && perm.coarseLocation !== 'granted') {
+      console.warn('[gps] Permiso ubicación denegado');
+      return;
+    }
+    _driverGpsThrottleMs = 0;
+    _driverGpsWatchId = await Geolocation.watchPosition(
+      { enableHighAccuracy: true, timeout: 30000 },
+      async (pos, err) => {
+        if (err) { console.warn('[gps] error:', err); return; }
+        if (!pos || !pos.coords) return;
+        const now = Date.now();
+        // Throttle: máximo 1 update cada 12s (suficiente para mapa + ahorra batería)
+        if (now - _driverGpsThrottleMs < 12000) return;
+        _driverGpsThrottleMs = now;
+        try {
+          await tgStore.updateTrip(tripId, {
+            driverLocation: {
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+              accuracy: pos.coords.accuracy || null,
+              heading: pos.coords.heading || null,
+              speed: pos.coords.speed || null,
+              ts: now
+            }
+          });
+        } catch (e) {
+          console.warn('[gps] updateTrip falló:', e.message);
+        }
+      }
+    );
+    console.log('[gps] tracking iniciado para trip', tripId);
+  } catch (err) {
+    console.warn('[gps] startDriverTracking error:', err);
+  }
+}
+async function stopDriverTracking() {
+  if (!_driverGpsWatchId) return;
+  try {
+    const { Geolocation } = window.Capacitor.Plugins;
+    await Geolocation.clearWatch({ id: _driverGpsWatchId });
+    console.log('[gps] tracking detenido');
+  } catch (e) { console.warn('[gps] stopDriverTracking:', e); }
+  _driverGpsWatchId = null;
+}
+
+// ─── BANNER CONSENTIMIENTO RGPD (primera ejecución) ──────────────────────
 
 // ─── BANNER CONSENTIMIENTO RGPD (primera ejecución) ──────────────────────
 (function showDriverConsent() {

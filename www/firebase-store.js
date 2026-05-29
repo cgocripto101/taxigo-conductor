@@ -259,11 +259,35 @@
     return () => localWatchers.all.delete(cb);
   }
 
+  // ── FCM tokens del cliente (para push notifications) ─────────
+  async function saveClientFcmToken({ phone, token }) {
+    if (!phone || !token) return;
+    if (isReady()) {
+      // Doc por teléfono (un cliente puede tener varios dispositivos pero típicamente 1)
+      const docId = btoa(unescape(encodeURIComponent(phone))).replace(/[^A-Za-z0-9]/g, '').slice(0, 80);
+      await db.collection('clientFcmTokens').doc(docId).set({
+        phone, token,
+        platform: 'android', // iOS lo cambiará al detectar
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+    }
+    try { localStorage.setItem('tg_client_fcm_token', token); } catch(e){}
+  }
+
+  // Actualizar viaje con el FCM token actual (útil para que la Cloud Function lo encuentre)
+  async function attachClientTokenToTrip(tripId) {
+    const token = localStorage.getItem('tg_client_fcm_token');
+    if (!token || !tripId) return;
+    try { await updateTrip(tripId, { clientFCMToken: token }); }
+    catch (e) { console.warn('[tgStore] attachClientTokenToTrip:', e.message); }
+  }
+
   // ── Export ───────────────────────────────────────────────
   global.tgStore = {
     init, isReady, mode,
     createTrip, updateTrip, getTrip, getAllTrips,
-    watchTrip, watchSearching, watchByDriver, watchAll
+    watchTrip, watchSearching, watchByDriver, watchAll,
+    saveClientFcmToken, attachClientTokenToTrip
   };
 
   // Auto-init en próxima tick: si ya hay config guardado, conecta solo
