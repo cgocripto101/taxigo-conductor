@@ -1040,6 +1040,21 @@ function saveEditProfile() {
   drv.vehicleType = vehicleType;
   drv.vehiclePax  = vt.pax;
   drv.payments    = payments;
+
+  // Sincronizar con Firestore para que la Cloud Function filtre correctamente
+  // los pushes por capacidad del vehículo del conductor.
+  try {
+    if (window.firebase && window.firebase.firestore && drv.name) {
+      await window.firebase.firestore().collection('drivers').doc(drv.name).set({
+        nick: drv.name,
+        carModel: drv.carModel || '',
+        vehicleType: drv.vehicleType || 'comfort',
+        vehiclePax:  drv.vehiclePax  || 4,
+        updatedAt: Date.now()
+      }, { merge: true });
+      console.info('[profile] vehicleType sincronizado:', drv.vehicleType, drv.vehiclePax, 'pax');
+    }
+  } catch (e) { console.warn('[profile] sync Firestore falló:', e); }
   const order = ['base_usdc', 'solana_usdc', 'stripe', 'bizum', 'revolut'];
   const primary = order.find(k => payments[k]);
   drv.payMethod  = primary || '';
@@ -1175,6 +1190,21 @@ function enterApp(profile) {
   drv.vehicleType = profile.vehicleType || 'comfort';
   drv.vehiclePax  = profile.vehiclePax || (VEHICLE_TYPES_DRV[drv.vehicleType]?.pax) || 4;
 
+  // Sincronizar vehicleType/vehiclePax con Firestore en el login para que la
+  // Cloud Function notifyDriversOnNewTrip filtre correctamente por capacidad.
+  // Repara automáticamente conductores que se registraron antes de este fix.
+  try {
+    if (window.firebase && window.firebase.firestore) {
+      window.firebase.firestore().collection('drivers').doc(drv.name).set({
+        nick: drv.name,
+        carModel: drv.carModel || '',
+        vehicleType: drv.vehicleType || 'comfort',
+        vehiclePax:  drv.vehiclePax  || 4,
+        updatedAt: Date.now()
+      }, { merge: true }).catch(e => console.warn('[login] sync vehicleType Firestore:', e));
+    }
+  } catch (e) { console.warn('[login] sync vehicleType:', e); }
+
   // Inicializar dashboard de ganancias + refresh cada 60s
   setTimeout(() => refreshMyEarnings(), 1500);
   setInterval(() => refreshMyEarnings(), 60000);
@@ -1254,10 +1284,12 @@ async function initPushNotifications() {
           await dbRef.set({
             nick: drv.name,
             carModel: drv.carModel || '',
+            vehicleType: drv.vehicleType || 'comfort',
+            vehiclePax:  drv.vehiclePax  || 4,
             fcmTokens: arrUnion,
             updatedAt: Date.now()
           }, { merge: true });
-          console.info('[push] Token guardado en Firestore para', drv.name);
+          console.info('[push] Token guardado en Firestore para', drv.name, 'pax:', drv.vehiclePax);
         }
       } catch (e) { console.warn('[push] No se pudo guardar token:', e); }
     });
@@ -1569,9 +1601,11 @@ function showIncomingPopup(trip) {
   const extrasHtml = extraTags.length
     ? `<div style="background:#1a2433;border:1px solid var(--info);border-radius:8px;padding:8px 10px;margin:8px 0;font-size:0.82rem;color:var(--info);font-weight:700;display:flex;flex-wrap:wrap;gap:6px">${extraTags.map(x=>`<span>${x}</span>`).join('<span style="color:var(--muted)">·</span>')}</div>`
     : '';
+  // Banner del tipo de coche que el CLIENTE eligió (gran tamaño, color por nivel)
+  const vehBanner = renderClientVehicleBanner(trip.vehicleType || 'comfort', vIcon, vName, trip.vehiclePax || 4);
   document.getElementById('pop-route').innerHTML =
     pickupBox +
-    `<span style="font-size:0.85rem;color:var(--primary);font-weight:700">${vIcon} ${vName}</span><br><br>` +
+    vehBanner +
     `<span style="color:#3fb950;font-weight:700">📍 RECOGIDA</span><br>${trip.origin}<br><br>` +
     `<span style="color:#f85149;font-weight:700">🏁 DESTINO</span><br>${trip.dest}` + extrasHtml + contactHtml;
   document.getElementById('incoming-popup').style.display = 'flex';
@@ -1661,7 +1695,18 @@ function showActiveBanner(trip) {
   document.getElementById('ab-price').textContent = trip.price + ' € (cliente)';
   const payout = trip.driverPayout || (+(parseFloat(trip.price) * 0.85).toFixed(2));
   document.getElementById('ab-payout').textContent = payout + ' €  (85%)';
-  document.getElementById('ab-route').innerHTML = '<strong>'+trip.origin+'</strong> → <strong>'+trip.dest+'</strong>';
+  // Etiqueta del tipo de coche del cliente, junto a la ruta
+  const vIcon = trip.vehicleIcon || '🚗';
+  const vName = trip.vehicleName || 'Comfort';
+  const vType = String(trip.vehicleType || 'comfort').toLowerCase();
+  const tierColor = vType === 'vanxl' ? '#d2a8ff' : vType === 'van' ? '#ffb86b' : '#7dc4ff';
+  const tierMult  = vType === 'vanxl' ? '×2.0'    : vType === 'van' ? '×1.5'    : '×1.0';
+  document.getElementById('ab-route').innerHTML =
+    `<div style="display:inline-block;background:#0a1020;border:1px solid ${tierColor};color:${tierColor};
+       padding:2px 8px;border-radius:6px;font-size:.72rem;font-weight:800;margin-bottom:6px">
+       ${vIcon} ${vName} ${tierMult}
+     </div><br>` +
+    '<strong>'+trip.origin+'</strong> → <strong>'+trip.dest+'</strong>';
   updateStageChips(1);
   // Reset chat badge cuando arranca un viaje nuevo
   drvUpdateChatBadge(trip.unreadByDriverCount || 0);
@@ -1872,6 +1917,43 @@ function handleCompleted(trip) {
   if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
 }
 
+// ── Banner: tipo de coche que el CLIENTE eligió ──
+// Crítico para conductores de Van/VanXL: explica por qué el precio puede ser bajo.
+function renderClientVehicleBanner(vType, vIcon, vName, vPax) {
+  const t = String(vType || 'comfort').toLowerCase();
+  let bg, border, fg, mult, note;
+  if (t === 'vanxl') {
+    bg = '#2a1830'; border = '#a371f7'; fg = '#d2a8ff';
+    mult = '×2.0';
+    note = dLang==='en' ? 'Premium Van XL rate' : 'Tarifa premium Van XL';
+  } else if (t === 'van') {
+    bg = '#2a1f10'; border = '#f0883e'; fg = '#ffb86b';
+    mult = '×1.5';
+    note = dLang==='en' ? 'Van rate (1.5×)' : 'Tarifa Coach Van (×1,5)';
+  } else {
+    bg = '#101a26'; border = '#3a8aff'; fg = '#7dc4ff';
+    mult = '×1.0';
+    note = dLang==='en'
+      ? 'Standard rate — if your car is bigger, the price stays at Comfort tier'
+      : 'Tarifa base — si tu coche es más grande, el precio sigue siendo el de Comfort';
+  }
+  const label = dLang==='en' ? 'CLIENT CHOSE' : 'CLIENTE ELIGIÓ';
+  return `
+    <div style="background:${bg};border:2px solid ${border};border-radius:10px;padding:10px 12px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <div style="display:flex;align-items:center;gap:10px;min-width:0">
+          <span style="font-size:1.5rem">${vIcon}</span>
+          <div style="min-width:0">
+            <div style="font-size:0.62rem;color:${fg};opacity:.8;letter-spacing:.5px;font-weight:700">${label}</div>
+            <div style="font-weight:900;font-size:0.98rem;color:${fg}">${vName} · ${vPax} pax</div>
+          </div>
+        </div>
+        <div style="background:${border};color:#000;font-weight:900;font-size:0.78rem;padding:4px 8px;border-radius:6px;white-space:nowrap">${mult}</div>
+      </div>
+      <div style="font-size:0.72rem;color:${fg};opacity:.85;margin-top:6px;line-height:1.35">${note}</div>
+    </div>`;
+}
+
 // ── Render ──
 function renderAvailable(trips) {
   document.getElementById('avail-count').textContent = trips.length;
@@ -1889,6 +1971,7 @@ function renderAvailable(trips) {
     const vIcon = t.vehicleIcon || '🚗';
     const vName = t.vehicleName || 'Comfort';
     const vPax  = t.vehiclePax  || 4;
+    const vType = t.vehicleType || 'comfort';
     const ex = t.extras || {};
     const extraTags = [];
     if (ex.pet)     extraTags.push((dLang==='en'?'🐾 Pet':'🐾 Mascota'));
@@ -1897,18 +1980,20 @@ function renderAvailable(trips) {
     const extrasHtml = extraTags.length
       ? `<div style="background:#1a2433;border:1px solid var(--info);border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:0.78rem;color:var(--info);font-weight:700;display:flex;flex-wrap:wrap;gap:6px">${extraTags.map(x=>`<span>${x}</span>`).join('<span style="color:var(--muted)">·</span>')}</div>`
       : '';
+    // Banner del nivel elegido por el CLIENTE — fundamental para van/vanXL
+    const vehBanner = renderClientVehicleBanner(vType, vIcon, vName, vPax);
     return `
     <div class="trip-card new-trip">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
         <div>
           <span class="badge-new">🔔 NUEVO</span>
-          <span style="margin-left:6px;font-size:0.78rem;color:var(--primary);font-weight:700">${vIcon} ${vName} · ${vPax} pax</span>
         </div>
         <div style="text-align:right">
           <div class="tc-price">${t.price} €</div>
           <div class="tc-dist">${t.dist} km · ${t.durationMin||'?'} min</div>
         </div>
       </div>
+      ${vehBanner}
       <div style="background:#0a1020;border-radius:10px;padding:10px 12px;margin-bottom:10px;border:1px solid var(--border)">
         <div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:6px">
           <span style="color:var(--success);font-size:1rem;margin-top:1px">📍</span>
