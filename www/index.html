@@ -1236,8 +1236,8 @@ function toggleAvailability() {
 // ── Map ──
 function initMap() {
   driverMap = L.map('driver-map', { tap:true, zoomAnimation:true }).setView([38.9067, 1.4206], 12);
-  // Tema oscuro CartoDB Dark Matter (combina con la app)
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  // Tema CartoDB Voyager — claro con colores sutiles
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; OSM &copy; CARTO',
     maxZoom: 20,
     subdomains: 'abcd'
