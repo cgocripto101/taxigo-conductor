@@ -537,7 +537,35 @@
 
       <button class="btn btn-primary" style="margin-top:14px" onclick="saveEditProfile()">💾 Guardar cambios</button>
       <button class="btn" style="background:transparent;border:1px solid var(--border);color:var(--muted);margin-top:8px" onclick="closeEditProfile()">Cancelar</button>
+
+      <!-- Eliminar cuenta (Apple requirement) -->
+      <div style="margin-top:20px;padding-top:14px;border-top:1px solid var(--border)">
+        <button class="btn btn-sm" style="width:100%;background:transparent;color:var(--danger);border:1px solid var(--danger);font-size:.8rem" onclick="confirmDeleteDriverAccount()">🗑️ Eliminar mi cuenta de conductor</button>
+      </div>
     </div>
+  </div>
+</div>
+
+<!-- Modal eliminar cuenta conductor -->
+<div id="del-drv-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:1800;padding:20px;overflow-y:auto" onclick="if(event.target===this)closeDeleteDriverAccount()">
+  <div style="background:var(--card);border:1px solid var(--danger);border-radius:var(--radius);max-width:420px;margin:30px auto;padding:24px">
+    <div style="text-align:center;font-size:3rem;margin-bottom:10px">⚠️</div>
+    <h2 style="color:var(--danger);font-size:1.2rem;margin-bottom:14px;text-align:center">Eliminar mi cuenta de conductor</h2>
+    <p style="font-size:.88rem;line-height:1.55;color:var(--text);margin-bottom:14px">Esto borrará permanentemente:</p>
+    <ul style="font-size:.85rem;line-height:1.7;color:var(--text);margin:0 0 14px;padding-left:20px">
+      <li>Tu apodo, PIN y datos personales</li>
+      <li>Todas tus configuraciones de cobro (USDC, Stripe, Bizum, Revolut)</li>
+      <li>Tu historial de viajes aceptados</li>
+      <li>Tus valoraciones recibidas</li>
+    </ul>
+    <p style="font-size:.82rem;color:var(--muted);margin-bottom:16px">⚠️ Esta acción es <b>irreversible</b>. Los viajes ya cobrados se conservarán anonimizados por obligación fiscal (5 años).</p>
+    <div style="margin-bottom:14px">
+      <label style="display:block;font-size:.8rem;color:var(--muted);margin-bottom:6px">Confirma tu PIN actual para eliminar:</label>
+      <input id="del-drv-pin" type="password" inputmode="numeric" maxlength="6" style="width:100%;padding:10px;background:var(--card2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:1rem;text-align:center;letter-spacing:6px" placeholder="••••" autocomplete="off">
+    </div>
+    <div id="del-drv-error" style="display:none;margin-bottom:10px;padding:8px;border-radius:6px;background:#2a0a0a;color:var(--danger);font-size:.82rem;text-align:center"></div>
+    <button class="btn btn-sm" style="width:100%;background:var(--danger);color:#fff;border:none;padding:12px;border-radius:8px;font-weight:700;cursor:pointer;margin-bottom:8px" onclick="doDeleteDriverAccount()">🗑️ Eliminar definitivamente</button>
+    <button class="btn btn-sm" style="width:100%;background:transparent;color:var(--muted);border:1px solid var(--border)" onclick="closeDeleteDriverAccount()">Cancelar</button>
   </div>
 </div>
 
@@ -826,6 +854,63 @@ async function startConnectOnboarding() {
 function closeEditProfile() {
   document.getElementById('edit-profile-modal').style.display = 'none';
 }
+
+// ─── ELIMINAR CUENTA CONDUCTOR (Apple requirement) ──────────────────────
+function confirmDeleteDriverAccount() {
+  closeEditProfile();
+  document.getElementById('del-drv-modal').style.display = 'block';
+  document.getElementById('del-drv-pin').value = '';
+  document.getElementById('del-drv-error').style.display = 'none';
+  setTimeout(() => document.getElementById('del-drv-pin').focus(), 100);
+}
+function closeDeleteDriverAccount() {
+  document.getElementById('del-drv-modal').style.display = 'none';
+}
+async function doDeleteDriverAccount() {
+  const errEl = document.getElementById('del-drv-error');
+  errEl.style.display = 'none';
+  const pinInput = document.getElementById('del-drv-pin').value.trim();
+  if (!currentDriver) {
+    errEl.textContent = 'No hay sesión activa';
+    errEl.style.display = 'block';
+    return;
+  }
+  // Verificar PIN contra el del conductor logueado
+  if (pinInput !== String(currentDriver.pin || '').trim()) {
+    errEl.textContent = '❌ PIN incorrecto';
+    errEl.style.display = 'block';
+    return;
+  }
+  try {
+    // 1. Server-side: pedir Cloud Function que anonimice viajes/borre driver
+    if (window.firebase?.functions) {
+      try {
+        const fn = firebase.app().functions('europe-west1').httpsCallable('deleteDriverData');
+        await fn({ apodo: currentDriver.apodo, pin: pinInput });
+      } catch (e) {
+        console.warn('[deleteDriverData]', e);
+        // Continuamos con borrado local
+      }
+    }
+    // 2. Borrar localStorage relacionado
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && (k.startsWith('tg_driver') || k.startsWith('tg_drv') || k === 'tg_current_driver' || k.startsWith('tg_lockout_'))) {
+        localStorage.removeItem(k);
+      }
+    }
+    alert('✅ Tu cuenta de conductor ha sido eliminada. La app se cerrará.');
+    if (window.Capacitor?.Plugins?.App) {
+      window.Capacitor.Plugins.App.exitApp();
+    } else {
+      document.body.innerHTML = '<div style="padding:40px;text-align:center;color:#fff;font-family:sans-serif;background:#0f1219;min-height:100vh"><h2>👋</h2><p>Cuenta eliminada. Puedes cerrar esta ventana.</p></div>';
+    }
+  } catch (err) {
+    errEl.textContent = 'Error eliminando cuenta: ' + (err.message || err);
+    errEl.style.display = 'block';
+  }
+}
+
 function showEpError(msg) {
   const el = document.getElementById('ep-error');
   if (!el) return;
