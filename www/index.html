@@ -1235,8 +1235,13 @@ function toggleAvailability() {
 
 // ── Map ──
 function initMap() {
-  driverMap = L.map('driver-map', { tap:true }).setView([38.9067, 1.4206], 12);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'© OpenStreetMap' }).addTo(driverMap);
+  driverMap = L.map('driver-map', { tap:true, zoomAnimation:true }).setView([38.9067, 1.4206], 12);
+  // Tema oscuro CartoDB Dark Matter (combina con la app)
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OSM &copy; CARTO',
+    maxZoom: 20,
+    subdomains: 'abcd'
+  }).addTo(driverMap);
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(pos => {
       const ll = [pos.coords.latitude, pos.coords.longitude];
@@ -1253,16 +1258,39 @@ function taxiIcon() {
   });
 }
 
+// Marcadores tipo "pin" estilizados (verde origen, rojo destino)
+function _drvPin(emoji, color) {
+  return L.divIcon({
+    html: `<div style="position:relative;width:42px;height:52px">
+      <div style="position:absolute;left:50%;top:0;width:38px;height:38px;background:${color};border-radius:50% 50% 50% 0;transform:translateX(-50%) rotate(-45deg);box-shadow:0 4px 12px rgba(0,0,0,.7);border:3px solid #fff"></div>
+      <div style="position:absolute;left:50%;top:7px;transform:translateX(-50%);font-size:18px;z-index:2">${emoji}</div>
+    </div>`,
+    iconSize: [42, 52], iconAnchor: [21, 50], className: 'tg-pin'
+  });
+}
 function showRouteOnMap(trip) {
   if (!driverMap) return;
   if (routeLayer) { driverMap.removeLayer(routeLayer); routeLayer = null; }
   const ol = trip.originLatLng, dl = trip.destLatLng;
   if (!ol || !dl) return;
   const orig = L.latLng(ol.lat, ol.lng), dest = L.latLng(dl.lat, dl.lng);
-  L.marker(orig, { icon: L.divIcon({ html:'<div style="font-size:18px">📍</div>', iconSize:[24,24], iconAnchor:[12,12], className:'' }) }).addTo(driverMap);
-  L.marker(dest, { icon: L.divIcon({ html:'<div style="font-size:18px">🏁</div>', iconSize:[24,24], iconAnchor:[12,12], className:'' }) }).addTo(driverMap);
-  routeLayer = L.polyline([orig, dest], { color:'#f4c430', weight:4, dashArray:'10,6' }).addTo(driverMap);
-  driverMap.fitBounds(routeLayer.getBounds(), { padding:[50,50] });
+  L.marker(orig, { icon: _drvPin('📍', '#00c896') }).addTo(driverMap).bindPopup('<b>Recogida</b>');
+  L.marker(dest, { icon: _drvPin('🏁', '#ff4757') }).addTo(driverMap).bindPopup('<b>Destino</b>');
+  // 1) Línea recta provisional
+  routeLayer = L.polyline([orig, dest], { color:'#f4c430', weight:4, opacity:.55, dashArray:'8,8' }).addTo(driverMap);
+  driverMap.fitBounds(routeLayer.getBounds(), { padding:[50,50], maxZoom:16 });
+  // 2) Ruta real por calles via OSRM
+  const url = `https://router.project-osrm.org/route/v1/driving/${ol.lng},${ol.lat};${dl.lng},${dl.lat}?overview=full&geometries=geojson`;
+  fetch(url)
+    .then(r => r.ok ? r.json() : Promise.reject())
+    .then(data => {
+      if (!data.routes || !data.routes.length) return;
+      const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+      if (routeLayer) driverMap.removeLayer(routeLayer);
+      routeLayer = L.polyline(coords, { color:'#f4c430', weight:5, opacity:.95, lineJoin:'round', lineCap:'round' }).addTo(driverMap);
+      driverMap.fitBounds(routeLayer.getBounds(), { padding:[50,50], maxZoom:16 });
+    })
+    .catch(() => { /* mantiene línea recta si OSRM falla */ });
 }
 
 // ── Watchers (real-time vía Firestore, fallback localStorage) ──
