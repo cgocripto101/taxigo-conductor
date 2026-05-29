@@ -235,6 +235,20 @@
         <input type="text" id="reg-nick" placeholder="p.ej. Carlos_Taxi, Paco_Ibiza..." autocomplete="off" maxlength="30"/>
       </div>
       <div class="form-group">
+        <label>📞 Tu teléfono (para que el cliente pueda llamarte) <span style="color:var(--danger)">*</span></label>
+        <input type="tel" id="reg-phone" placeholder="+34 600 000 000" autocomplete="tel" inputmode="tel" maxlength="20"/>
+        <div class="pay-hint" style="margin-top:4px">Solo se muestra al cliente que ha aceptado tu viaje. No aparece en el perfil público.</div>
+      </div>
+      <div class="form-group">
+        <label>🚗 Modelo del coche (lo ve el cliente) <span style="color:var(--muted);font-weight:400">(opcional)</span></label>
+        <input type="text" id="reg-car-model" placeholder="p.ej. Toyota Auris, Mercedes Vito" maxlength="50"/>
+      </div>
+      <div class="form-group">
+        <label>🔢 Matrícula del vehículo <span style="color:var(--muted);font-weight:400">(opcional)</span></label>
+        <input type="text" id="reg-plate" placeholder="IB-1234-AB" maxlength="15" style="text-transform:uppercase"/>
+        <div class="pay-hint" style="margin-top:4px">El cliente la verá al aceptar el viaje, para identificar el coche al llegar.</div>
+      </div>
+      <div class="form-group">
         <label>🚗 Tipo de tu vehículo <span style="color:var(--danger)">*</span></label>
         <select id="reg-vehicle">
           <option value="comfort">🚗 Comfort · turismo · 4 plazas</option>
@@ -334,6 +348,36 @@
 
   <div id="content">
     <div id="panel-list">
+
+      <!-- Mis ganancias (dashboard) -->
+      <div style="background:linear-gradient(135deg,#0d1117,#1a1200);border:1px solid var(--primary);border-radius:12px;padding:14px;margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div style="font-size:.85rem;font-weight:700;color:var(--primary)">💰 Mis ganancias</div>
+          <button onclick="refreshMyEarnings()" style="background:transparent;border:1px solid var(--border);color:var(--muted);padding:4px 10px;border-radius:6px;font-size:.72rem;cursor:pointer">🔄 Actualizar</button>
+        </div>
+        <div id="my-earnings" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+          <div style="text-align:center;padding:8px 4px;background:rgba(0,0,0,.3);border-radius:6px">
+            <div style="font-size:.65rem;color:var(--muted);text-transform:uppercase">Hoy</div>
+            <div style="font-size:1rem;font-weight:800;color:var(--success);line-height:1.1" id="me-today">— €</div>
+            <div style="font-size:.62rem;color:var(--muted)" id="me-today-trips">0 viajes</div>
+          </div>
+          <div style="text-align:center;padding:8px 4px;background:rgba(0,0,0,.3);border-radius:6px">
+            <div style="font-size:.65rem;color:var(--muted);text-transform:uppercase">Semana</div>
+            <div style="font-size:1rem;font-weight:800;color:var(--success);line-height:1.1" id="me-week">— €</div>
+            <div style="font-size:.62rem;color:var(--muted)" id="me-week-trips">0 viajes</div>
+          </div>
+          <div style="text-align:center;padding:8px 4px;background:rgba(0,0,0,.3);border-radius:6px">
+            <div style="font-size:.65rem;color:var(--muted);text-transform:uppercase">Mes</div>
+            <div style="font-size:1rem;font-weight:800;color:var(--success);line-height:1.1" id="me-month">— €</div>
+            <div style="font-size:.62rem;color:var(--muted)" id="me-month-trips">0 viajes</div>
+          </div>
+          <div style="text-align:center;padding:8px 4px;background:rgba(0,0,0,.3);border-radius:6px">
+            <div style="font-size:.65rem;color:var(--muted);text-transform:uppercase">Pendiente</div>
+            <div style="font-size:1rem;font-weight:800;color:var(--primary);line-height:1.1" id="me-pending">— €</div>
+            <div style="font-size:.62rem;color:var(--muted)" id="me-pending-trips">0 viajes</div>
+          </div>
+        </div>
+      </div>
 
       <!-- Active trip banner -->
       <div id="active-banner">
@@ -654,6 +698,9 @@ function saveProfile(profile) {
 
 function doRegister() {
   const nick        = document.getElementById('reg-nick').value.trim();
+  const phone       = document.getElementById('reg-phone').value.trim();
+  const carModel    = document.getElementById('reg-car-model').value.trim();
+  const plate       = document.getElementById('reg-plate').value.trim().toUpperCase();
   const vehicleType = document.getElementById('reg-vehicle').value;
   const base        = document.getElementById('reg-base').value.trim();
   const solana      = document.getElementById('reg-solana').value.trim();
@@ -667,6 +714,8 @@ function doRegister() {
 
   if (!nick)             { showToast('Introduce un apodo'); return; }
   if (nick.length < 3)   { showToast('El apodo debe tener al menos 3 caracteres'); return; }
+  if (!phone)            { showToast('Introduce tu teléfono'); return; }
+  if (!/^\+?\d[\d\s\-]{7,}$/.test(phone)) { showToast('Teléfono no válido'); return; }
   if (!base && !solana && !stripe && !bizum && !revolut) {
     showToast('Rellena al menos un método de cobro'); return;
   }
@@ -691,16 +740,15 @@ function doRegister() {
 
   const vt = VEHICLE_TYPES_DRV[vehicleType];
   const profile = {
-    nick, payments, pin,
-    carModel: '',
+    nick, phone, payments, pin,
+    carModel: carModel || '',
+    plate: plate || '',
     vehicleType,
     vehiclePax: vt.pax,
     createdAt: Date.now()
   };
   saveProfile(profile);
   enterApp(profile);
-  // Aviso suave para que complete el modelo del coche
-  setTimeout(() => showToast('💡 No olvides añadir el modelo de tu coche en "Editar perfil"'), 600);
 }
 
 // Migra un perfil legacy (con method+address) al nuevo formato { payments: {...} }
@@ -1087,10 +1135,16 @@ function doLogin() {
 function enterApp(profile) {
   profile = migrateProfile(profile);  // soporte perfiles antiguos { method, address }
   drv.name        = profile.nick;
+  drv.phone       = profile.phone || '';
+  drv.plate       = profile.plate || '';
   drv.payments    = profile.payments || {};
   drv.carModel    = profile.carModel || '';
   drv.vehicleType = profile.vehicleType || 'comfort';
   drv.vehiclePax  = profile.vehiclePax || (VEHICLE_TYPES_DRV[drv.vehicleType]?.pax) || 4;
+
+  // Inicializar dashboard de ganancias + refresh cada 60s
+  setTimeout(() => refreshMyEarnings(), 1500);
+  setInterval(() => refreshMyEarnings(), 60000);
 
   // Método "principal" (el primero disponible) — para mostrar resumen en el header
   const order = ['base_usdc', 'solana_usdc', 'stripe'];
@@ -1524,14 +1578,18 @@ async function acceptCurrentTrip() {
     stage: 1,
     driverName: drv.name,
     driverCar:  drv.carModel || '',
+    driverPlate: drv.plate || '',
+    driverPhone: drv.phone || '',
     driver: {
       name:       drv.name,
-      payMethod:  drv.payMethod,          // método principal
-      payAddress: drv.payAddress,         // dirección principal
-      payments:   drv.payments || {},     // TODOS los métodos disponibles
+      phone:      drv.phone || '',
+      payMethod:  drv.payMethod,
+      payAddress: drv.payAddress,
+      payments:   drv.payments || {},
       rating: 4.9,
       eta: 5,
-      car: drv.carModel || ''
+      car: drv.carModel || '',
+      plate: drv.plate || ''
     }
   };
   await tgStore.updateTrip(pendingTripId, patch);
@@ -1825,6 +1883,42 @@ function showToast(msg) {
 
 // ── Service Worker ──
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+
+// ─── DASHBOARD GANANCIAS DEL CONDUCTOR ──────────────────────────
+async function refreshMyEarnings() {
+  if (!drv || !drv.name) return;
+  try {
+    const trips = (await tgStore.getAllTrips()).filter(t =>
+      (t.driverName === drv.name || t.assignedDriver === drv.name) &&
+      t.status === 'completed'
+    );
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const dayOfWeek = now.getDay() === 0 ? 6 : now.getDay() - 1; // lunes = 0
+    const startOfWeek = startOfDay - dayOfWeek * 86400000;
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+
+    let today=0, week=0, month=0, pending=0;
+    let tToday=0, tWeek=0, tMonth=0, tPending=0;
+    for (const t of trips) {
+      const payout = parseFloat(t.driverPayout) || (parseFloat(t.price || 0) * 0.85);
+      const ts = t.completedAt || t.ts || 0;
+      if (ts >= startOfDay)   { today += payout; tToday++; }
+      if (ts >= startOfWeek)  { week  += payout; tWeek++;  }
+      if (ts >= startOfMonth) { month += payout; tMonth++; }
+      if (!t.payoutSent)      { pending += payout; tPending++; }
+    }
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    set('me-today',   today.toFixed(2)   + ' €');
+    set('me-week',    week.toFixed(2)    + ' €');
+    set('me-month',   month.toFixed(2)   + ' €');
+    set('me-pending', pending.toFixed(2) + ' €');
+    set('me-today-trips',   tToday   + (tToday===1?' viaje':' viajes'));
+    set('me-week-trips',    tWeek    + (tWeek===1?' viaje':' viajes'));
+    set('me-month-trips',   tMonth   + (tMonth===1?' viaje':' viajes'));
+    set('me-pending-trips', tPending + (tPending===1?' viaje':' viajes'));
+  } catch (e) { console.warn('[earnings]', e); }
+}
 
 // ─── TRACKING GPS DEL CONDUCTOR ──────────────────────────────────
 // Cuando el conductor tiene viaje activo (accepted/in_progress) enviamos
