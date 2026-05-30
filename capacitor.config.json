@@ -1,5 +1,5 @@
 {
-  "appId":   "com.taxigo.driver",
+  "appId":   "com.taxigoibz.driver",
   "appName": "TaxiGo Conductor",
   "webDir":  "www",
   "bundledWebRuntime": false,

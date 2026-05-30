@@ -1,4 +1,4 @@
-package com.taxigo.driver;
+package com.taxigoibz.driver;
 
 import com.getcapacitor.BridgeActivity;
 
